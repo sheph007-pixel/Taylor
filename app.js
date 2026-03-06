@@ -12,7 +12,8 @@ let state = {
   skippedCount: 0,
   userLocation: null,
   isPaused: false,
-  watchId: null
+  watchId: null,
+  routeName: ''        // Name of current route
 };
 
 // Maps
@@ -153,7 +154,7 @@ async function handleFile(file) {
 
     if (state.geocodedStops.length > 0) {
       renderStopsList();
-      showScreen('review');
+      promptRouteName();
     }
   } catch (err) {
     hideLoading();
@@ -252,6 +253,7 @@ function goToUpload() {
   state.geocodedStops = [];
   fileInput.value = '';
   uploadStatus.classList.add('hidden');
+  renderSavedRoutes();
   showScreen('upload');
 }
 
@@ -347,6 +349,7 @@ async function optimizeRoute() {
     state.skippedCount = 0;
 
     renderRouteOverview();
+    document.getElementById('route-title').textContent = state.routeName || 'Your Route';
     showScreen('route');
   } catch (err) {
     alert('Failed to calculate route. Please try again.');
@@ -804,7 +807,7 @@ function newTrip() {
   state = {
     stops: [], geocodedStops: [], optimizedStops: [], routeData: null,
     currentStopIndex: 0, deliveredCount: 0, skippedCount: 0,
-    userLocation: null, isPaused: false, watchId: null
+    userLocation: null, isPaused: false, watchId: null, routeName: ''
   };
   routeMap = null;
   navMap = null;
@@ -815,6 +818,110 @@ function newTrip() {
   document.getElementById('route-map').innerHTML = '';
   document.getElementById('nav-map').innerHTML = '';
   showScreen('upload');
+}
+
+// ============================================================
+// SAVED ROUTES - Name, Save, Load, Delete
+// ============================================================
+function promptRouteName() {
+  document.getElementById('route-name-modal').classList.remove('hidden');
+  const input = document.getElementById('route-name-input');
+  input.value = '';
+  input.focus();
+}
+
+function saveRouteWithName() {
+  const input = document.getElementById('route-name-input');
+  const name = input.value.trim();
+  if (!name) {
+    input.classList.add('input-error');
+    setTimeout(() => input.classList.remove('input-error'), 600);
+    return;
+  }
+
+  state.routeName = name;
+  const savedRoutes = getSavedRoutes();
+
+  savedRoutes[name] = {
+    stops: state.geocodedStops,
+    savedAt: Date.now(),
+    stopCount: state.geocodedStops.length
+  };
+
+  localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
+  document.getElementById('route-name-modal').classList.add('hidden');
+  renderSavedRoutes();
+  showScreen('review');
+}
+
+function skipRouteName() {
+  state.routeName = '';
+  document.getElementById('route-name-modal').classList.add('hidden');
+  showScreen('review');
+}
+
+function getSavedRoutes() {
+  try {
+    return JSON.parse(localStorage.getItem('routerunner_saved_routes') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function renderSavedRoutes() {
+  const routes = getSavedRoutes();
+  const keys = Object.keys(routes);
+  const section = document.getElementById('saved-routes-section');
+  const list = document.getElementById('saved-routes-list');
+
+  if (keys.length === 0) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+
+  // Sort by most recently saved
+  keys.sort((a, b) => routes[b].savedAt - routes[a].savedAt);
+
+  list.innerHTML = keys.map(name => {
+    const route = routes[name];
+    const date = new Date(route.savedAt);
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return '<div class="saved-route-card">' +
+      '<div class="saved-route-info" onclick="loadSavedRoute(\'' + escapeAttr(name) + '\')">' +
+        '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
+        '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
+      '</div>' +
+      '<button class="saved-route-delete" onclick="deleteSavedRoute(\'' + escapeAttr(name) + '\')" aria-label="Delete route">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+      '</button>' +
+    '</div>';
+  }).join('');
+}
+
+function escapeAttr(str) {
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function loadSavedRoute(name) {
+  const routes = getSavedRoutes();
+  const route = routes[name];
+  if (!route) return;
+
+  state.routeName = name;
+  state.geocodedStops = route.stops;
+  state.stops = route.stops.map(s => ({ name: s.name, address: s.address, delivered: false }));
+  renderStopsList();
+  showScreen('review');
+}
+
+function deleteSavedRoute(name) {
+  if (!confirm('Delete "' + name + '"?')) return;
+  const routes = getSavedRoutes();
+  delete routes[name];
+  localStorage.setItem('routerunner_saved_routes', JSON.stringify(routes));
+  renderSavedRoutes();
 }
 
 // ============================================================
@@ -899,5 +1006,88 @@ function escapeHtml(str) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  renderSavedRoutes();
   checkSavedProgress();
+
+  // Check if route data is in URL hash (shared link)
+  loadFromShareLink();
+
+  // Enter key in route name input
+  document.getElementById('route-name-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveRouteWithName();
+  });
 });
+
+// ============================================================
+// SHARE LINK - Encode route data in URL for cross-device use
+// ============================================================
+function generateShareLink() {
+  if (!state.geocodedStops || state.geocodedStops.length === 0) return;
+
+  const data = {
+    n: state.routeName || 'Shared Route',
+    s: state.geocodedStops.map(s => ({
+      nm: s.name,
+      ad: s.address,
+      la: Math.round(s.lat * 1e6) / 1e6,
+      ln: Math.round(s.lng * 1e6) / 1e6
+    }))
+  };
+
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const url = window.location.origin + window.location.pathname + '#route=' + encoded;
+
+  // Copy to clipboard
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Link copied! Open it on your phone to load this route.');
+    }).catch(() => {
+      prompt('Copy this link and open it on your phone:', url);
+    });
+  } else {
+    prompt('Copy this link and open it on your phone:', url);
+  }
+}
+
+function loadFromShareLink() {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#route=')) return;
+
+  try {
+    const encoded = hash.substring(7);
+    const json = decodeURIComponent(escape(atob(encoded)));
+    const data = JSON.parse(json);
+
+    if (!data.s || data.s.length === 0) return;
+
+    state.routeName = data.n || 'Shared Route';
+    state.geocodedStops = data.s.map(s => ({
+      name: s.nm,
+      address: s.ad,
+      lat: s.la,
+      lng: s.ln,
+      delivered: false
+    }));
+    state.stops = state.geocodedStops.map(s => ({ name: s.name, address: s.address, delivered: false }));
+
+    // Clear the hash so it doesn't reload on refresh
+    history.replaceState(null, '', window.location.pathname);
+
+    // Auto-save this shared route
+    const savedRoutes = getSavedRoutes();
+    if (!savedRoutes[state.routeName]) {
+      savedRoutes[state.routeName] = {
+        stops: state.geocodedStops,
+        savedAt: Date.now(),
+        stopCount: state.geocodedStops.length
+      };
+      localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
+      renderSavedRoutes();
+    }
+
+    renderStopsList();
+    showScreen('review');
+  } catch (e) {
+    console.error('Failed to load shared route:', e);
+  }
+}

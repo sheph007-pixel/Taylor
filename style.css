@@ -161,6 +161,161 @@ html, body {
   color: var(--gray-700);
 }
 
+/* ============ SAVED ROUTES ============ */
+.saved-routes-section {
+  width: 100%;
+  max-width: 360px;
+}
+.saved-routes-section .format-title {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.saved-routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.saved-route-card {
+  display: flex;
+  align-items: center;
+  background: white;
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.saved-route-info {
+  flex: 1;
+  padding: 14px 16px;
+  cursor: pointer;
+  min-width: 0;
+}
+.saved-route-info:active {
+  background: var(--gray-50);
+}
+.saved-route-name {
+  font-weight: 600;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-route-meta {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+.saved-route-delete {
+  width: 44px;
+  height: 100%;
+  min-height: 48px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--gray-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.saved-route-delete:active {
+  background: var(--gray-100);
+  color: var(--red);
+}
+
+/* ============ ROUTE NAME MODAL ============ */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 340px;
+  box-shadow: var(--shadow-lg);
+}
+.modal-box h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.modal-hint {
+  font-size: 14px;
+  color: var(--gray-500);
+  margin-bottom: 16px;
+}
+.modal-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid var(--gray-300);
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  margin-bottom: 16px;
+}
+.modal-input:focus {
+  border-color: var(--blue);
+}
+.modal-input.input-error {
+  border-color: var(--red);
+  animation: shake 0.3s;
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+.modal-btn {
+  flex: 1;
+  padding: 14px !important;
+  font-size: 15px !important;
+  border-radius: 10px !important;
+}
+
+/* ============ SHARE BUTTON ============ */
+.route-bottom-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.btn-share {
+  width: 56px;
+  flex-shrink: 0;
+  border: 2px solid var(--gray-300);
+  background: white;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-700);
+  transition: all 0.2s;
+}
+.btn-share:active {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--blue-light);
+}
+.route-start-btn {
+  flex: 1;
+}
+
 /* ============ HEADER ============ */
 .header {
   display: flex;
