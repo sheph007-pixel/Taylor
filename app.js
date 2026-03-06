@@ -875,8 +875,9 @@ function saveRouteWithName() {
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
   renderSavedRoutes();
 
-  // Show share options so user can send route to their phone
-  showShareStep();
+  // Close modal and go to review
+  document.getElementById('route-name-modal').classList.add('hidden');
+  showScreen('review');
 }
 
 function showShareStep() {
@@ -944,12 +945,30 @@ function skipRouteName() {
   showScreen('review');
 }
 
+// Server routes loaded from routes.json (available on all devices)
+var serverRoutes = {};
+
+function loadServerRoutes() {
+  return fetch('routes.json?t=' + Date.now())
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      serverRoutes = data || {};
+      renderSavedRoutes();
+    })
+    .catch(function() { serverRoutes = {}; });
+}
+
 function getSavedRoutes() {
+  // Merge server routes (shared across all devices) with local routes
+  var local = {};
   try {
-    return JSON.parse(localStorage.getItem('routerunner_saved_routes') || '{}');
-  } catch (e) {
-    return {};
-  }
+    local = JSON.parse(localStorage.getItem('routerunner_saved_routes') || '{}');
+  } catch (e) {}
+  // Server routes take priority — they're the "real" ones
+  var merged = {};
+  Object.keys(serverRoutes).forEach(function(k) { merged[k] = serverRoutes[k]; });
+  Object.keys(local).forEach(function(k) { if (!merged[k]) merged[k] = local[k]; });
+  return merged;
 }
 
 function renderSavedRoutes() {
@@ -977,7 +996,6 @@ function renderSavedRoutes() {
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
       '</div>' +
-      '<button class="saved-route-send" onclick="shareSavedRoute(\'' + escapeAttr(name) + '\')">Email to Phone</button>' +
       '<button class="saved-route-delete" onclick="deleteSavedRoute(\'' + escapeAttr(name) + '\')" aria-label="Delete route">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
@@ -1115,10 +1133,12 @@ function escapeHtml(str) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
+  // Load shared routes from server first, then render
+  loadServerRoutes();
   renderSavedRoutes();
   checkSavedProgress();
 
-  // Check if route data is in URL hash (shared link)
+  // Check if route data is in URL (shared link)
   loadFromShareLink();
 
   // Enter key in route name input

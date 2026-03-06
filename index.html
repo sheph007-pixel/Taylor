@@ -35,7 +35,7 @@
 
       <!-- Saved Routes -->
       <div class="saved-routes-section" id="saved-routes-section">
-        <p class="format-title">Saved Routes</p>
+        <p class="format-title">Your Routes</p>
         <div class="saved-routes-list" id="saved-routes-list"></div>
       </div>
 
@@ -53,29 +53,12 @@
   <!-- Route Name Modal -->
   <div id="route-name-modal" class="modal-overlay hidden">
     <div class="modal-box">
-      <!-- Step 1: Name the route -->
-      <div id="modal-step-name">
-        <h3>Name This Route</h3>
-        <p class="modal-hint">Save it so you can reuse it anytime</p>
-        <input type="text" id="route-name-input" class="modal-input" placeholder="e.g. Monday Downtown, North Side" maxlength="50">
-        <div class="modal-actions">
-          <button class="btn-secondary modal-btn" onclick="skipRouteName()">Skip</button>
-          <button class="btn-primary modal-btn" onclick="saveRouteWithName()">Save Route</button>
-        </div>
-      </div>
-      <!-- Step 2: Send to phone -->
-      <div id="modal-step-share" class="hidden">
-        <h3>Route Saved!</h3>
-        <p class="modal-hint">Email yourself the link to open on your phone</p>
-
-        <button class="btn-send-phone" onclick="sendToPhone()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg>
-          Email to My Phone
-        </button>
-
-        <div class="modal-actions" style="margin-top:16px">
-          <button class="btn-secondary modal-btn" onclick="closeShareModal()">Done</button>
-        </div>
+      <h3>Name This Route</h3>
+      <p class="modal-hint">Save it so you can reuse it from any device</p>
+      <input type="text" id="route-name-input" class="modal-input" placeholder="e.g. Vestavia, Monday Downtown" maxlength="50">
+      <div class="modal-actions">
+        <button class="btn-secondary modal-btn" onclick="skipRouteName()">Skip</button>
+        <button class="btn-primary modal-btn" onclick="saveRouteWithName()">Save Route</button>
       </div>
     </div>
   </div>
