@@ -821,138 +821,26 @@ function newTrip() {
 }
 
 // ============================================================
-// CLOUD SYNC - Cross-device route sync via jsonstorage.net
-// No auth required, CORS enabled, free
+// SHARE ROUTE - Send route to another device
+// Uses Web Share API (native share sheet) with fallbacks
 // ============================================================
-const SYNC_API = 'https://api.jsonstorage.net/v1/json';
+function shareRoute() {
+  const url = buildShareUrl();
+  const name = state.routeName || 'My Route';
 
-function getSyncId() {
-  return localStorage.getItem('routerunner_sync_id') || '';
-}
-
-function getSyncLabel() {
-  return localStorage.getItem('routerunner_sync_label') || '';
-}
-
-function initSyncUI() {
-  const syncId = getSyncId();
-  if (syncId) {
-    document.getElementById('sync-setup').classList.add('hidden');
-    document.getElementById('sync-connected').classList.remove('hidden');
-    document.getElementById('sync-code-display').textContent = getSyncLabel() || 'connected';
-    pullFromCloud();
+  // Use native Web Share API if available (works on most phones & modern browsers)
+  if (navigator.share) {
+    navigator.share({
+      title: name + ' - Route Runner',
+      text: 'Open this link to load the "' + name + '" route:',
+      url: url
+    }).catch(function() {
+      // User cancelled or share failed — fall back to copy
+      copyShareLink();
+    });
   } else {
-    document.getElementById('sync-setup').classList.remove('hidden');
-    document.getElementById('sync-connected').classList.add('hidden');
-  }
-}
-
-async function connectSyncCode() {
-  const input = document.getElementById('sync-code-input');
-  const code = input.value.trim();
-  if (!code) {
-    input.style.borderColor = 'var(--red)';
-    setTimeout(() => { input.style.borderColor = ''; }, 600);
-    return;
-  }
-
-  showLoading('Connecting...');
-
-  // Check if they entered an existing sync ID (UUID format from jsonstorage)
-  if (code.includes('-') && code.length > 20) {
-    try {
-      const res = await fetch(SYNC_API + '/' + code);
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('routerunner_sync_id', code);
-        localStorage.setItem('routerunner_sync_label', data._label || 'synced');
-        if (data.routes) {
-          const localRoutes = getSavedRoutes();
-          const merged = Object.assign({}, localRoutes, data.routes);
-          localStorage.setItem('routerunner_saved_routes', JSON.stringify(merged));
-        }
-        hideLoading();
-        initSyncUI();
-        renderSavedRoutes();
-        return;
-      }
-    } catch (e) {
-      console.error('Fetch existing failed:', e);
-    }
-  }
-
-  // Create a new JSON document with current routes
-  try {
-    const routes = getSavedRoutes();
-    const payload = { _label: code, routes: routes };
-    const res = await fetch(SYNC_API + '?apiKey=', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      // jsonstorage returns { uri: "https://api.jsonstorage.net/v1/json/UUID" }
-      if (data.uri) {
-        const syncId = data.uri.split('/').pop();
-        localStorage.setItem('routerunner_sync_id', syncId);
-        localStorage.setItem('routerunner_sync_label', code);
-        hideLoading();
-        initSyncUI();
-        // Show the sync ID for the other device
-        var msg = 'Synced! On your phone, enter this code:\n\n' + syncId;
-        alert(msg);
-        // Also copy to clipboard
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(syncId).catch(function() {});
-        }
-        return;
-      }
-    }
-  } catch (e) {
-    console.error('Create failed:', e);
-  }
-
-  hideLoading();
-  alert('Could not connect. Check your internet and try again.');
-}
-
-async function pushToCloud() {
-  const syncId = getSyncId();
-  if (!syncId) return;
-
-  const routes = getSavedRoutes();
-  const label = getSyncLabel();
-
-  try {
-    await fetch(SYNC_API + '/' + syncId + '?apiKey=', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _label: label, routes: routes })
-    });
-  } catch (e) {
-    console.error('Push to cloud failed:', e);
-  }
-}
-
-async function pullFromCloud() {
-  const syncId = getSyncId();
-  if (!syncId) return;
-
-  try {
-    const res = await fetch(SYNC_API + '/' + syncId);
-    if (!res.ok) return;
-
-    const data = await res.json();
-    if (data && data.routes) {
-      const localRoutes = getSavedRoutes();
-      const merged = Object.assign({}, localRoutes, data.routes);
-      localStorage.setItem('routerunner_saved_routes', JSON.stringify(merged));
-      renderSavedRoutes();
-    }
-  } catch (e) {
-    console.error('Pull from cloud failed:', e);
+    // Desktop browsers without Web Share — copy to clipboard
+    copyShareLink();
   }
 }
 
@@ -986,15 +874,9 @@ function saveRouteWithName() {
 
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
   renderSavedRoutes();
-  pushToCloud(); // Sync to cloud for other devices
 
-  // If synced to cloud, skip share modal — route will appear on other devices
-  if (getSyncBlobId()) {
-    document.getElementById('route-name-modal').classList.add('hidden');
-    showScreen('review');
-  } else {
-    showShareStep();
-  }
+  // Show share options so user can send route to their phone
+  showShareStep();
 }
 
 function showShareStep() {
@@ -1146,7 +1028,6 @@ function deleteSavedRoute(name) {
   delete routes[name];
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(routes));
   renderSavedRoutes();
-  pushToCloud();
 }
 
 // ============================================================
@@ -1232,7 +1113,6 @@ function escapeHtml(str) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   renderSavedRoutes();
-  initSyncUI();
   checkSavedProgress();
 
   // Check if route data is in URL hash (shared link)
@@ -1243,10 +1123,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') saveRouteWithName();
   });
 
-  // Enter key in sync code input
-  document.getElementById('sync-code-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') connectSyncCode();
-  });
 });
 
 // ============================================================
