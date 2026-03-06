@@ -875,16 +875,20 @@ function saveRouteWithName() {
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
   renderSavedRoutes();
 
-  // Update browser URL to contain route data — this URL works on any device
-  var url = buildShareUrl();
-  history.replaceState(null, '', url.replace(window.location.origin, ''));
+  // Save to server so it shows up on all devices (phone, etc.)
+  fetch('/api/save-route', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, stops: state.geocodedStops })
+  }).then(function() {
+    console.log('Route published to website');
+  }).catch(function() {
+    console.log('Server save skipped (offline or static hosting)');
+  });
 
   // Close modal and go to review
   document.getElementById('route-name-modal').classList.add('hidden');
   showScreen('review');
-
-  // Show the link bar so user can copy/bookmark
-  showRouteLink(url);
 }
 
 function showShareStep() {

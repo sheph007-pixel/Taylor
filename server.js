@@ -3,6 +3,8 @@ const multer = require('multer');
 const XLSX = require('xlsx');
 const { parse } = require('csv-parse/sync');
 const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 const https = require('https');
 const http = require('http');
 
@@ -307,6 +309,59 @@ function fetchUrl(url) {
     }).on('error', reject);
   });
 }
+
+// Save a named route to routes.json and push to GitHub so it's available on all devices
+const ROUTES_FILE = path.join(__dirname, 'routes.json');
+
+app.post('/api/save-route', (req, res) => {
+  try {
+    const { name, stops } = req.body;
+    if (!name || !stops || stops.length === 0) {
+      return res.status(400).json({ error: 'Name and stops required' });
+    }
+
+    // Load existing routes
+    let routes = {};
+    try {
+      routes = JSON.parse(fs.readFileSync(ROUTES_FILE, 'utf-8'));
+    } catch (e) {}
+
+    // Save the route
+    routes[name] = {
+      stops: stops,
+      savedAt: Date.now(),
+      stopCount: stops.length
+    };
+
+    fs.writeFileSync(ROUTES_FILE, JSON.stringify(routes, null, 2));
+
+    // Auto-push to GitHub so the site updates
+    try {
+      execSync('git add routes.json && git commit -m "Add route: ' + name.replace(/"/g, '\\"') + '" && git push', {
+        cwd: __dirname,
+        stdio: 'pipe'
+      });
+      console.log('Route "' + name + '" saved and pushed to GitHub');
+    } catch (gitErr) {
+      console.log('Route saved locally (git push skipped):', gitErr.message);
+    }
+
+    res.json({ success: true, message: 'Route saved' });
+  } catch (err) {
+    console.error('Save route error:', err);
+    res.status(500).json({ error: 'Failed to save route' });
+  }
+});
+
+// Serve routes.json
+app.get('/api/routes', (req, res) => {
+  try {
+    const routes = JSON.parse(fs.readFileSync(ROUTES_FILE, 'utf-8'));
+    res.json(routes);
+  } catch (e) {
+    res.json({});
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
