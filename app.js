@@ -821,22 +821,25 @@ function newTrip() {
 }
 
 // ============================================================
-// CLOUD SYNC - Cross-device route sync via jsonblob.com
-// The "sync code" IS the jsonblob ID. Device 1 creates a blob
-// and shows the ID. Device 2 enters the same ID to connect.
+// CLOUD SYNC - Cross-device route sync via jsonstorage.net
+// No auth required, CORS enabled, free
 // ============================================================
-const SYNC_API = 'https://jsonblob.com/api/jsonBlob';
+const SYNC_API = 'https://api.jsonstorage.net/v1/json';
 
-function getSyncBlobId() {
-  return localStorage.getItem('routerunner_sync_blob') || '';
+function getSyncId() {
+  return localStorage.getItem('routerunner_sync_id') || '';
+}
+
+function getSyncLabel() {
+  return localStorage.getItem('routerunner_sync_label') || '';
 }
 
 function initSyncUI() {
-  const blobId = getSyncBlobId();
-  if (blobId) {
+  const syncId = getSyncId();
+  if (syncId) {
     document.getElementById('sync-setup').classList.add('hidden');
     document.getElementById('sync-connected').classList.remove('hidden');
-    document.getElementById('sync-code-display').textContent = blobId.slice(-8);
+    document.getElementById('sync-code-display').textContent = getSyncLabel() || 'connected';
     pullFromCloud();
   } else {
     document.getElementById('sync-setup').classList.remove('hidden');
@@ -855,63 +858,78 @@ async function connectSyncCode() {
 
   showLoading('Connecting...');
 
-  // If they entered a full blob ID or the short code, try to fetch it
-  // First try as-is (full ID)
-  var blobId = code;
-
-  try {
-    const res = await fetch(SYNC_API + '/' + blobId);
-    if (res.ok) {
-      // Found it — connect
-      localStorage.setItem('routerunner_sync_blob', blobId);
-      await pullFromCloud();
-      hideLoading();
-      initSyncUI();
-      return;
+  // Check if they entered an existing sync ID (UUID format from jsonstorage)
+  if (code.includes('-') && code.length > 20) {
+    try {
+      const res = await fetch(SYNC_API + '/' + code);
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('routerunner_sync_id', code);
+        localStorage.setItem('routerunner_sync_label', data._label || 'synced');
+        if (data.routes) {
+          const localRoutes = getSavedRoutes();
+          const merged = Object.assign({}, localRoutes, data.routes);
+          localStorage.setItem('routerunner_saved_routes', JSON.stringify(merged));
+        }
+        hideLoading();
+        initSyncUI();
+        renderSavedRoutes();
+        return;
+      }
+    } catch (e) {
+      console.error('Fetch existing failed:', e);
     }
-  } catch (e) {}
+  }
 
-  // If that didn't work, they might be first device — create new blob
+  // Create a new JSON document with current routes
   try {
     const routes = getSavedRoutes();
-    const res = await fetch(SYNC_API, {
+    const payload = { _label: code, routes: routes };
+    const res = await fetch(SYNC_API + '?apiKey=', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ routes: routes })
+      body: JSON.stringify(payload)
     });
 
     if (res.ok) {
-      const location = res.headers.get('Location');
-      blobId = location ? location.split('/').pop() : '';
-      if (blobId) {
-        localStorage.setItem('routerunner_sync_blob', blobId);
+      const data = await res.json();
+      // jsonstorage returns { uri: "https://api.jsonstorage.net/v1/json/UUID" }
+      if (data.uri) {
+        const syncId = data.uri.split('/').pop();
+        localStorage.setItem('routerunner_sync_id', syncId);
+        localStorage.setItem('routerunner_sync_label', code);
         hideLoading();
         initSyncUI();
-        // Show the code to user so they can enter it on their phone
-        alert('Your sync code is: ' + blobId + '\n\nEnter this same code on your phone to sync your routes.');
+        // Show the sync ID for the other device
+        var msg = 'Synced! On your phone, enter this code:\n\n' + syncId;
+        alert(msg);
+        // Also copy to clipboard
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(syncId).catch(function() {});
+        }
         return;
       }
     }
-
-    hideLoading();
-    alert('Could not connect. Please try again.');
   } catch (e) {
-    hideLoading();
-    alert('Network error. Please check your connection.');
-    console.error('Sync error:', e);
+    console.error('Create failed:', e);
   }
+
+  hideLoading();
+  alert('Could not connect. Check your internet and try again.');
 }
 
 async function pushToCloud() {
-  const blobId = getSyncBlobId();
-  if (!blobId) return;
+  const syncId = getSyncId();
+  if (!syncId) return;
 
   const routes = getSavedRoutes();
+  const label = getSyncLabel();
+
   try {
-    await fetch(SYNC_API + '/' + blobId, {
+    await fetch(SYNC_API + '/' + syncId + '?apiKey=', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ routes: routes })
+      body: JSON.stringify({ _label: label, routes: routes })
     });
   } catch (e) {
     console.error('Push to cloud failed:', e);
@@ -919,11 +937,11 @@ async function pushToCloud() {
 }
 
 async function pullFromCloud() {
-  const blobId = getSyncBlobId();
-  if (!blobId) return;
+  const syncId = getSyncId();
+  if (!syncId) return;
 
   try {
-    const res = await fetch(SYNC_API + '/' + blobId);
+    const res = await fetch(SYNC_API + '/' + syncId);
     if (!res.ok) return;
 
     const data = await res.json();
