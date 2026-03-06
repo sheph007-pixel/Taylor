@@ -1,0 +1,16 @@
+{
+  "name": "delivery-route-planner",
+  "version": "1.0.0",
+  "description": "Mobile-first delivery route planner for Alabama drivers",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "xlsx": "^0.18.5",
+    "csv-parse": "^5.5.0"
+  }
+}
