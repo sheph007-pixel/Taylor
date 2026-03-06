@@ -821,6 +821,124 @@ function newTrip() {
 }
 
 // ============================================================
+// CLOUD SYNC - Cross-device route sync via jsonblob.com
+// The "sync code" IS the jsonblob ID. Device 1 creates a blob
+// and shows the ID. Device 2 enters the same ID to connect.
+// ============================================================
+const SYNC_API = 'https://jsonblob.com/api/jsonBlob';
+
+function getSyncBlobId() {
+  return localStorage.getItem('routerunner_sync_blob') || '';
+}
+
+function initSyncUI() {
+  const blobId = getSyncBlobId();
+  if (blobId) {
+    document.getElementById('sync-setup').classList.add('hidden');
+    document.getElementById('sync-connected').classList.remove('hidden');
+    document.getElementById('sync-code-display').textContent = blobId.slice(-8);
+    pullFromCloud();
+  } else {
+    document.getElementById('sync-setup').classList.remove('hidden');
+    document.getElementById('sync-connected').classList.add('hidden');
+  }
+}
+
+async function connectSyncCode() {
+  const input = document.getElementById('sync-code-input');
+  const code = input.value.trim();
+  if (!code) {
+    input.style.borderColor = 'var(--red)';
+    setTimeout(() => { input.style.borderColor = ''; }, 600);
+    return;
+  }
+
+  showLoading('Connecting...');
+
+  // If they entered a full blob ID or the short code, try to fetch it
+  // First try as-is (full ID)
+  var blobId = code;
+
+  try {
+    const res = await fetch(SYNC_API + '/' + blobId);
+    if (res.ok) {
+      // Found it — connect
+      localStorage.setItem('routerunner_sync_blob', blobId);
+      await pullFromCloud();
+      hideLoading();
+      initSyncUI();
+      return;
+    }
+  } catch (e) {}
+
+  // If that didn't work, they might be first device — create new blob
+  try {
+    const routes = getSavedRoutes();
+    const res = await fetch(SYNC_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ routes: routes })
+    });
+
+    if (res.ok) {
+      const location = res.headers.get('Location');
+      blobId = location ? location.split('/').pop() : '';
+      if (blobId) {
+        localStorage.setItem('routerunner_sync_blob', blobId);
+        hideLoading();
+        initSyncUI();
+        // Show the code to user so they can enter it on their phone
+        alert('Your sync code is: ' + blobId + '\n\nEnter this same code on your phone to sync your routes.');
+        return;
+      }
+    }
+
+    hideLoading();
+    alert('Could not connect. Please try again.');
+  } catch (e) {
+    hideLoading();
+    alert('Network error. Please check your connection.');
+    console.error('Sync error:', e);
+  }
+}
+
+async function pushToCloud() {
+  const blobId = getSyncBlobId();
+  if (!blobId) return;
+
+  const routes = getSavedRoutes();
+  try {
+    await fetch(SYNC_API + '/' + blobId, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ routes: routes })
+    });
+  } catch (e) {
+    console.error('Push to cloud failed:', e);
+  }
+}
+
+async function pullFromCloud() {
+  const blobId = getSyncBlobId();
+  if (!blobId) return;
+
+  try {
+    const res = await fetch(SYNC_API + '/' + blobId);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    if (data && data.routes) {
+      const localRoutes = getSavedRoutes();
+      const merged = Object.assign({}, localRoutes, data.routes);
+      localStorage.setItem('routerunner_saved_routes', JSON.stringify(merged));
+      renderSavedRoutes();
+    }
+  } catch (e) {
+    console.error('Pull from cloud failed:', e);
+  }
+}
+
+// ============================================================
 // SAVED ROUTES - Name, Save, Load, Delete
 // ============================================================
 function promptRouteName() {
@@ -850,9 +968,15 @@ function saveRouteWithName() {
 
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
   renderSavedRoutes();
+  pushToCloud(); // Sync to cloud for other devices
 
-  // Show QR code step
-  showShareStep();
+  // If synced to cloud, skip share modal — route will appear on other devices
+  if (getSyncBlobId()) {
+    document.getElementById('route-name-modal').classList.add('hidden');
+    showScreen('review');
+  } else {
+    showShareStep();
+  }
 }
 
 function showShareStep() {
@@ -1004,6 +1128,7 @@ function deleteSavedRoute(name) {
   delete routes[name];
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(routes));
   renderSavedRoutes();
+  pushToCloud();
 }
 
 // ============================================================
@@ -1089,6 +1214,7 @@ function escapeHtml(str) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   renderSavedRoutes();
+  initSyncUI();
   checkSavedProgress();
 
   // Check if route data is in URL hash (shared link)
@@ -1097,6 +1223,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Enter key in route name input
   document.getElementById('route-name-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') saveRouteWithName();
+  });
+
+  // Enter key in sync code input
+  document.getElementById('sync-code-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') connectSyncCode();
   });
 });
 

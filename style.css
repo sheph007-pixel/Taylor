@@ -161,6 +161,89 @@ html, body {
   color: var(--gray-700);
 }
 
+/* ============ SYNC ============ */
+.sync-section {
+  width: 100%;
+  max-width: 360px;
+}
+.sync-setup .format-title {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sync-input-row {
+  display: flex;
+  gap: 8px;
+}
+.sync-input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 2px solid var(--gray-300);
+  border-radius: 10px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.sync-input:focus {
+  border-color: var(--blue);
+}
+.btn-sync {
+  padding: 12px 20px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn-sync:active {
+  background: var(--blue-dark);
+}
+.sync-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-top: 6px;
+}
+.sync-connected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #e6f4ea;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--gray-700);
+}
+.sync-status strong {
+  color: var(--green-dark);
+}
+.sync-refresh {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--green-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.sync-refresh:active {
+  background: rgba(0,0,0,0.05);
+}
+
 /* ============ SAVED ROUTES ============ */
 .saved-routes-section {
   width: 100%;

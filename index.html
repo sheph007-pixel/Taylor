@@ -33,6 +33,27 @@
 
       <div id="upload-status" class="upload-status hidden"></div>
 
+      <!-- Sync Code -->
+      <div class="sync-section" id="sync-section">
+        <div id="sync-setup" class="sync-setup">
+          <p class="format-title">Sync Across Devices</p>
+          <div class="sync-input-row">
+            <input type="text" id="sync-code-input" class="sync-input" placeholder="Enter a sync code" maxlength="20" autocapitalize="off" autocorrect="off">
+            <button class="btn-sync" onclick="connectSyncCode()">Sync</button>
+          </div>
+          <p class="sync-hint">Type anything to create a code, or enter an existing one to connect</p>
+        </div>
+        <div id="sync-connected" class="sync-connected hidden">
+          <div class="sync-status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#34a853" stroke-width="2.5" width="18" height="18"><circle cx="12" cy="12" r="10"/><polyline points="16 9 10.5 14.5 8 12"/></svg>
+            <span>Synced as <strong id="sync-code-display"></strong></span>
+          </div>
+          <button class="sync-refresh" onclick="pullFromCloud()" title="Refresh">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+          </button>
+        </div>
+      </div>
+
       <!-- Saved Routes -->
       <div class="saved-routes-section" id="saved-routes-section">
         <p class="format-title">Saved Routes</p>
