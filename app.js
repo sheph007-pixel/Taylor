@@ -896,15 +896,14 @@ function buildShareUrl() {
   };
   const json = JSON.stringify(data);
 
-  // Use LZ-string compression if available (much shorter URLs)
+  // Use query param ?r= instead of hash — email apps strip # fragments
   if (typeof LZString !== 'undefined') {
     const compressed = LZString.compressToEncodedURIComponent(json);
-    return window.location.origin + window.location.pathname + '#r=' + compressed;
+    return window.location.origin + window.location.pathname + '?r=' + compressed;
   }
 
-  // Fallback to base64
   const encoded = btoa(unescape(encodeURIComponent(json)));
-  return window.location.origin + window.location.pathname + '#route=' + encoded;
+  return window.location.origin + window.location.pathname + '?route=' + encoded;
 }
 
 function sendToPhone() {
@@ -1029,9 +1028,9 @@ function buildShareUrlForRoute(name) {
   };
   var json = JSON.stringify(data);
   if (typeof LZString !== 'undefined') {
-    return window.location.origin + window.location.pathname + '#r=' + LZString.compressToEncodedURIComponent(json);
+    return window.location.origin + window.location.pathname + '?r=' + LZString.compressToEncodedURIComponent(json);
   }
-  return window.location.origin + window.location.pathname + '#route=' + btoa(unescape(encodeURIComponent(json)));
+  return window.location.origin + window.location.pathname + '?route=' + btoa(unescape(encodeURIComponent(json)));
 }
 
 // ============================================================
@@ -1143,21 +1142,27 @@ function generateShareLink() {
 }
 
 function loadFromShareLink() {
-  const hash = window.location.hash;
-  if (!hash.startsWith('#route=') && !hash.startsWith('#r=')) return;
+  // Check query params first (?r=), then fall back to hash (#r=)
+  var params = new URLSearchParams(window.location.search);
+  var compressed = params.get('r');
+  var legacy = params.get('route');
+  var hash = window.location.hash;
 
   try {
     var json;
-    if (hash.startsWith('#r=') && typeof LZString !== 'undefined') {
-      // LZ-string compressed format
+    if (compressed && typeof LZString !== 'undefined') {
+      json = LZString.decompressFromEncodedURIComponent(compressed);
+    } else if (legacy) {
+      json = decodeURIComponent(escape(atob(legacy)));
+    } else if (hash.startsWith('#r=') && typeof LZString !== 'undefined') {
       json = LZString.decompressFromEncodedURIComponent(hash.substring(3));
+    } else if (hash.startsWith('#route=')) {
+      json = decodeURIComponent(escape(atob(hash.substring(7))));
     } else {
-      // Legacy base64 format
-      const encoded = hash.substring(7);
-      json = decodeURIComponent(escape(atob(encoded)));
+      return;
     }
-    const data = JSON.parse(json);
 
+    const data = JSON.parse(json);
     if (!data.s || data.s.length === 0) return;
 
     state.routeName = data.n || 'Shared Route';
@@ -1170,7 +1175,7 @@ function loadFromShareLink() {
     }));
     state.stops = state.geocodedStops.map(s => ({ name: s.name, address: s.address, delivered: false }));
 
-    // Clear the hash so it doesn't reload on refresh
+    // Clean URL
     history.replaceState(null, '', window.location.pathname);
 
     // Auto-save this shared route
