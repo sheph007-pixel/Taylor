@@ -849,14 +849,76 @@ function saveRouteWithName() {
   };
 
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
-  document.getElementById('route-name-modal').classList.add('hidden');
   renderSavedRoutes();
+
+  // Show QR code step
+  showShareStep();
+}
+
+function showShareStep() {
+  document.getElementById('modal-step-name').classList.add('hidden');
+  const shareStep = document.getElementById('modal-step-share');
+  shareStep.classList.remove('hidden');
+
+  // Generate QR code
+  const url = buildShareUrl();
+  const container = document.getElementById('qr-code-container');
+  container.innerHTML = '';
+
+  if (typeof qrcode !== 'undefined') {
+    // Use error correction level L for shorter URLs, M for longer
+    var qr = qrcode(0, url.length > 1000 ? 'L' : 'M');
+    qr.addData(url);
+    qr.make();
+    container.innerHTML = qr.createSvgTag(5, 0);
+  } else {
+    container.innerHTML = '<p style="color:var(--gray-500);font-size:13px;">QR generation unavailable. Use the copy link button below.</p>';
+  }
+}
+
+function buildShareUrl() {
+  const data = {
+    n: state.routeName || 'Shared Route',
+    s: state.geocodedStops.map(s => ({
+      nm: s.name,
+      ad: s.address,
+      la: Math.round(s.lat * 1e6) / 1e6,
+      ln: Math.round(s.lng * 1e6) / 1e6
+    }))
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  return window.location.origin + window.location.pathname + '#route=' + encoded;
+}
+
+function copyShareLink() {
+  const url = buildShareUrl();
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.querySelector('.btn-copy-link');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy Link'; }, 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  } else {
+    prompt('Copy this link:', url);
+  }
+}
+
+function closeShareModal() {
+  document.getElementById('route-name-modal').classList.add('hidden');
+  // Reset modal to step 1 for next time
+  document.getElementById('modal-step-name').classList.remove('hidden');
+  document.getElementById('modal-step-share').classList.add('hidden');
   showScreen('review');
 }
 
 function skipRouteName() {
   state.routeName = '';
   document.getElementById('route-name-modal').classList.add('hidden');
+  // Reset modal steps
+  document.getElementById('modal-step-name').classList.remove('hidden');
+  document.getElementById('modal-step-share').classList.add('hidden');
   showScreen('review');
 }
 
@@ -1024,29 +1086,11 @@ document.addEventListener('DOMContentLoaded', () => {
 function generateShareLink() {
   if (!state.geocodedStops || state.geocodedStops.length === 0) return;
 
-  const data = {
-    n: state.routeName || 'Shared Route',
-    s: state.geocodedStops.map(s => ({
-      nm: s.name,
-      ad: s.address,
-      la: Math.round(s.lat * 1e6) / 1e6,
-      ln: Math.round(s.lng * 1e6) / 1e6
-    }))
-  };
-
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  const url = window.location.origin + window.location.pathname + '#route=' + encoded;
-
-  // Copy to clipboard
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Link copied! Open it on your phone to load this route.');
-    }).catch(() => {
-      prompt('Copy this link and open it on your phone:', url);
-    });
-  } else {
-    prompt('Copy this link and open it on your phone:', url);
-  }
+  // Show the modal with QR code directly (skip naming step)
+  document.getElementById('modal-step-name').classList.add('hidden');
+  document.getElementById('modal-step-share').classList.remove('hidden');
+  document.getElementById('route-name-modal').classList.remove('hidden');
+  showShareStep();
 }
 
 function loadFromShareLink() {

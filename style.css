@@ -277,6 +277,42 @@ html, body {
   25% { transform: translateX(-6px); }
   75% { transform: translateX(6px); }
 }
+.qr-container {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+.qr-container svg {
+  max-width: 200px;
+  max-height: 200px;
+  width: 100%;
+  height: auto;
+}
+.qr-or {
+  text-align: center;
+  font-size: 13px;
+  color: var(--gray-500);
+  margin: 8px 0;
+}
+.btn-copy-link {
+  width: 100%;
+  padding: 12px;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-700);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.btn-copy-link:active {
+  background: var(--gray-200);
+}
 .modal-actions {
   display: flex;
   gap: 10px;
