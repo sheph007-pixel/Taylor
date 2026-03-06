@@ -875,9 +875,16 @@ function saveRouteWithName() {
   localStorage.setItem('routerunner_saved_routes', JSON.stringify(savedRoutes));
   renderSavedRoutes();
 
+  // Update browser URL to contain route data — this URL works on any device
+  var url = buildShareUrl();
+  history.replaceState(null, '', url.replace(window.location.origin, ''));
+
   // Close modal and go to review
   document.getElementById('route-name-modal').classList.add('hidden');
   showScreen('review');
+
+  // Show the link bar so user can copy/bookmark
+  showRouteLink(url);
 }
 
 function showShareStep() {
@@ -1017,6 +1024,38 @@ function loadSavedRoute(name) {
   state.stops = route.stops.map(s => ({ name: s.name, address: s.address, delivered: false }));
   renderStopsList();
   showScreen('review');
+}
+
+function showRouteLink(url) {
+  // Remove any existing link bar
+  var existing = document.getElementById('route-link-bar');
+  if (existing) existing.remove();
+
+  var bar = document.createElement('div');
+  bar.id = 'route-link-bar';
+  bar.className = 'route-link-bar';
+  bar.innerHTML = '<p>Open this URL on your phone to use this route:</p>' +
+    '<div class="route-link-url">' + url + '</div>' +
+    '<button class="btn-primary" onclick="copyRouteLink()">Copy Link</button>';
+
+  // Insert at top of current screen
+  var screen = document.querySelector('.screen:not(.hidden)');
+  if (screen) screen.insertBefore(bar, screen.firstChild.nextSibling);
+}
+
+function copyRouteLink() {
+  var urlEl = document.querySelector('.route-link-url');
+  if (!urlEl) return;
+  var url = urlEl.textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() {
+      var btn = document.querySelector('#route-link-bar .btn-primary');
+      btn.textContent = 'Copied!';
+      setTimeout(function() { btn.textContent = 'Copy Link'; }, 2000);
+    });
+  } else {
+    prompt('Copy this link:', url);
+  }
 }
 
 function deleteSavedRoute(name) {

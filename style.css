@@ -323,6 +323,33 @@ html, body {
   color: var(--red);
 }
 
+/* ============ ROUTE LINK BAR ============ */
+.route-link-bar {
+  background: #e8f5e9;
+  border: 1px solid #a5d6a7;
+  border-radius: 10px;
+  padding: 14px;
+  margin: 10px 16px;
+  text-align: center;
+}
+.route-link-bar p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+.route-link-url {
+  background: #fff;
+  border: 1px solid #c8e6c9;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+  word-break: break-all;
+  margin-bottom: 10px;
+  color: #333;
+  user-select: all;
+}
+
 /* ============ ROUTE NAME MODAL ============ */
 .modal-overlay {
   position: fixed;
