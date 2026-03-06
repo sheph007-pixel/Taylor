@@ -907,10 +907,10 @@ function buildShareUrl() {
   return window.location.origin + window.location.pathname + '#route=' + encoded;
 }
 
-function textMeLink() {
+function sendToPhone() {
   const url = buildShareUrl();
-  // Opens the default SMS app with the link pre-filled
-  window.open('sms:?body=' + encodeURIComponent('Open your route: ' + url));
+  // Use email on desktop — works everywhere
+  window.location.href = 'mailto:?subject=' + encodeURIComponent('My Route') + '&body=' + encodeURIComponent('Open this link on your phone:\n\n' + url);
 }
 
 function copyShareLink() {
@@ -978,7 +978,7 @@ function renderSavedRoutes() {
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
       '</div>' +
-      '<button class="saved-route-send" onclick="shareSavedRoute(\'' + escapeAttr(name) + '\')">Send to Phone</button>' +
+      '<button class="saved-route-send" onclick="shareSavedRoute(\'' + escapeAttr(name) + '\')">Email to Phone</button>' +
       '<button class="saved-route-delete" onclick="deleteSavedRoute(\'' + escapeAttr(name) + '\')" aria-label="Delete route">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
@@ -1013,8 +1013,8 @@ function deleteSavedRoute(name) {
 function shareSavedRoute(name) {
   var url = buildShareUrlForRoute(name);
   if (!url) return;
-  // Open SMS with the link ready to send
-  window.open('sms:?body=' + encodeURIComponent(url));
+  // Use email on desktop — works everywhere
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(name + ' Route') + '&body=' + encodeURIComponent('Open this link on your phone:\n\n' + url);
 }
 
 function buildShareUrlForRoute(name) {
