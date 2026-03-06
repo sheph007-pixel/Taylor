@@ -290,21 +290,20 @@ html, body {
   color: var(--gray-500);
   margin-top: 2px;
 }
-.saved-route-share {
-  width: 44px;
-  height: 100%;
-  min-height: 48px;
+.saved-route-send {
+  padding: 6px 12px;
   border: none;
-  background: none;
+  border-radius: 6px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  color: var(--blue);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
+  white-space: nowrap;
 }
-.saved-route-share:active {
-  background: var(--blue-light, #e8f0fe);
+.saved-route-send:active {
+  opacity: 0.8;
 }
 .saved-route-delete {
   width: 44px;
@@ -387,14 +386,15 @@ html, body {
   width: 100%;
   height: auto;
 }
-.btn-text-me {
+.btn-text-me,
+.btn-send-phone {
   width: 100%;
-  padding: 14px;
+  padding: 16px;
   background: var(--blue);
   color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 16px;
+  border-radius: 12px;
+  font-size: 18px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -404,7 +404,8 @@ html, body {
   font-family: inherit;
   margin-bottom: 10px;
 }
-.btn-text-me:active {
+.btn-text-me:active,
+.btn-send-phone:active {
   background: var(--blue-dark);
 }
 .qr-divider {

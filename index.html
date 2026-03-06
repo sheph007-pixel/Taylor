@@ -65,29 +65,16 @@
       </div>
       <!-- Step 2: Send to phone -->
       <div id="modal-step-share" class="hidden">
-        <h3>Send to Your Phone</h3>
-        <p class="modal-hint">Open the link on your phone and the route saves automatically</p>
+        <h3>Route Saved!</h3>
+        <p class="modal-hint">Text yourself the link to use this route on your phone</p>
 
-        <button class="btn-text-me" onclick="shareRoute()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-          Share Route
+        <button class="btn-send-phone" onclick="textMeLink()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Text to My Phone
         </button>
 
-        <button class="btn-copy-link" onclick="copyShareLink()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-          Copy Link
-        </button>
-
-        <button class="btn-copy-link" onclick="textMeLink()" style="margin-top:6px">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-          Text Me the Link
-        </button>
-
-        <div class="qr-divider"><span>or scan QR code</span></div>
-        <div id="qr-code-container" class="qr-container"></div>
-
-        <div class="modal-actions">
-          <button class="btn-primary modal-btn" onclick="closeShareModal()">Done</button>
+        <div class="modal-actions" style="margin-top:16px">
+          <button class="btn-secondary modal-btn" onclick="closeShareModal()">Done</button>
         </div>
       </div>
     </div>

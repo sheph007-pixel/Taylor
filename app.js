@@ -881,28 +881,7 @@ function saveRouteWithName() {
 
 function showShareStep() {
   document.getElementById('modal-step-name').classList.add('hidden');
-  const shareStep = document.getElementById('modal-step-share');
-  shareStep.classList.remove('hidden');
-
-  // Generate QR code
-  const url = buildShareUrl();
-  const container = document.getElementById('qr-code-container');
-  container.innerHTML = '';
-
-  if (typeof qrcode !== 'undefined') {
-    try {
-      // Type 0 = auto-detect size, L = low error correction for max data
-      var qr = qrcode(0, 'L');
-      qr.addData(url);
-      qr.make();
-      container.innerHTML = qr.createSvgTag(4, 0);
-    } catch (e) {
-      // URL too long for QR — show message
-      container.innerHTML = '<p class="qr-fallback">Route too large for QR code.<br>Use the buttons above instead.</p>';
-    }
-  } else {
-    container.innerHTML = '<p class="qr-fallback">Use the buttons above to send to your phone.</p>';
-  }
+  document.getElementById('modal-step-share').classList.remove('hidden');
 }
 
 function buildShareUrl() {
@@ -999,9 +978,7 @@ function renderSavedRoutes() {
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
       '</div>' +
-      '<button class="saved-route-share" onclick="shareSavedRoute(\'' + escapeAttr(name) + '\')" aria-label="Send to phone">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>' +
-      '</button>' +
+      '<button class="saved-route-send" onclick="shareSavedRoute(\'' + escapeAttr(name) + '\')">Send to Phone</button>' +
       '<button class="saved-route-delete" onclick="deleteSavedRoute(\'' + escapeAttr(name) + '\')" aria-label="Delete route">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
       '</button>' +
@@ -1034,48 +1011,27 @@ function deleteSavedRoute(name) {
 }
 
 function shareSavedRoute(name) {
-  const routes = getSavedRoutes();
-  const route = routes[name];
-  if (!route) return;
+  var url = buildShareUrlForRoute(name);
+  if (!url) return;
+  // Open SMS with the link ready to send
+  window.open('sms:?body=' + encodeURIComponent(url));
+}
 
-  // Build share URL from saved route data
-  const data = {
+function buildShareUrlForRoute(name) {
+  var routes = getSavedRoutes();
+  var route = routes[name];
+  if (!route) return null;
+  var data = {
     n: name,
-    s: route.stops.map(s => ({
-      nm: s.name,
-      ad: s.address,
-      la: Math.round(s.lat * 1e6) / 1e6,
-      ln: Math.round(s.lng * 1e6) / 1e6
-    }))
+    s: route.stops.map(function(s) {
+      return { nm: s.name, ad: s.address, la: Math.round(s.lat * 1e6) / 1e6, ln: Math.round(s.lng * 1e6) / 1e6 };
+    })
   };
-  const json = JSON.stringify(data);
-  var url;
+  var json = JSON.stringify(data);
   if (typeof LZString !== 'undefined') {
-    url = window.location.origin + window.location.pathname + '#r=' + LZString.compressToEncodedURIComponent(json);
-  } else {
-    url = window.location.origin + window.location.pathname + '#route=' + btoa(unescape(encodeURIComponent(json)));
+    return window.location.origin + window.location.pathname + '#r=' + LZString.compressToEncodedURIComponent(json);
   }
-
-  // Try native share first (works great on desktop browsers too)
-  if (navigator.share) {
-    navigator.share({
-      title: name + ' - Route Runner',
-      text: 'Open this link on your phone to load the route:',
-      url: url
-    }).catch(function() {});
-    return;
-  }
-
-  // Fallback: copy to clipboard
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(function() {
-      alert('Link copied! Paste it in a text to yourself and open on your phone.');
-    }).catch(function() {
-      prompt('Copy this link and open it on your phone:', url);
-    });
-  } else {
-    prompt('Copy this link and open it on your phone:', url);
-  }
+  return window.location.origin + window.location.pathname + '#route=' + btoa(unescape(encodeURIComponent(json)));
 }
 
 // ============================================================
