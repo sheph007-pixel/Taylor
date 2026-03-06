@@ -288,11 +288,55 @@ html, body {
   width: 100%;
   height: auto;
 }
-.qr-or {
+.btn-text-me {
+  width: 100%;
+  padding: 14px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: inherit;
+  margin-bottom: 10px;
+}
+.btn-text-me:active {
+  background: var(--blue-dark);
+}
+.qr-divider {
   text-align: center;
+  margin: 14px 0 4px;
+  position: relative;
+}
+.qr-divider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--gray-200);
+}
+.qr-divider span {
+  background: white;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--gray-500);
+  position: relative;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.qr-fallback {
   font-size: 13px;
   color: var(--gray-500);
-  margin: 8px 0;
+  text-align: center;
+  padding: 8px 0;
+  line-height: 1.5;
 }
 .btn-copy-link {
   width: 100%;

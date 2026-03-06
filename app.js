@@ -866,13 +866,18 @@ function showShareStep() {
   container.innerHTML = '';
 
   if (typeof qrcode !== 'undefined') {
-    // Use error correction level L for shorter URLs, M for longer
-    var qr = qrcode(0, url.length > 1000 ? 'L' : 'M');
-    qr.addData(url);
-    qr.make();
-    container.innerHTML = qr.createSvgTag(5, 0);
+    try {
+      // Type 0 = auto-detect size, L = low error correction for max data
+      var qr = qrcode(0, 'L');
+      qr.addData(url);
+      qr.make();
+      container.innerHTML = qr.createSvgTag(4, 0);
+    } catch (e) {
+      // URL too long for QR — show message
+      container.innerHTML = '<p class="qr-fallback">Route too large for QR code.<br>Use the buttons above instead.</p>';
+    }
   } else {
-    container.innerHTML = '<p style="color:var(--gray-500);font-size:13px;">QR generation unavailable. Use the copy link button below.</p>';
+    container.innerHTML = '<p class="qr-fallback">Use the buttons above to send to your phone.</p>';
   }
 }
 
@@ -886,8 +891,23 @@ function buildShareUrl() {
       ln: Math.round(s.lng * 1e6) / 1e6
     }))
   };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  const json = JSON.stringify(data);
+
+  // Use LZ-string compression if available (much shorter URLs)
+  if (typeof LZString !== 'undefined') {
+    const compressed = LZString.compressToEncodedURIComponent(json);
+    return window.location.origin + window.location.pathname + '#r=' + compressed;
+  }
+
+  // Fallback to base64
+  const encoded = btoa(unescape(encodeURIComponent(json)));
   return window.location.origin + window.location.pathname + '#route=' + encoded;
+}
+
+function textMeLink() {
+  const url = buildShareUrl();
+  // Opens the default SMS app with the link pre-filled
+  window.open('sms:?body=' + encodeURIComponent('Open your route: ' + url));
 }
 
 function copyShareLink() {
@@ -1095,11 +1115,18 @@ function generateShareLink() {
 
 function loadFromShareLink() {
   const hash = window.location.hash;
-  if (!hash.startsWith('#route=')) return;
+  if (!hash.startsWith('#route=') && !hash.startsWith('#r=')) return;
 
   try {
-    const encoded = hash.substring(7);
-    const json = decodeURIComponent(escape(atob(encoded)));
+    var json;
+    if (hash.startsWith('#r=') && typeof LZString !== 'undefined') {
+      // LZ-string compressed format
+      json = LZString.decompressFromEncodedURIComponent(hash.substring(3));
+    } else {
+      // Legacy base64 format
+      const encoded = hash.substring(7);
+      json = decodeURIComponent(escape(atob(encoded)));
+    }
     const data = JSON.parse(json);
 
     if (!data.s || data.s.length === 0) return;

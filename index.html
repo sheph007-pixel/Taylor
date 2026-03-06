@@ -65,15 +65,23 @@
       </div>
       <!-- Step 2: Send to phone -->
       <div id="modal-step-share" class="hidden">
-        <h3>Open on Your Phone</h3>
-        <p class="modal-hint">Scan this QR code with your phone's camera</p>
-        <div id="qr-code-container" class="qr-container"></div>
-        <p class="qr-or">or</p>
+        <h3>Send to Your Phone</h3>
+        <p class="modal-hint">Pick the easiest way to get this route on your phone</p>
+
+        <button class="btn-text-me" onclick="textMeLink()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Text Me the Link
+        </button>
+
         <button class="btn-copy-link" onclick="copyShareLink()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           Copy Link
         </button>
-        <div class="modal-actions" style="margin-top: 16px;">
+
+        <div class="qr-divider"><span>or scan QR code</span></div>
+        <div id="qr-code-container" class="qr-container"></div>
+
+        <div class="modal-actions">
           <button class="btn-primary modal-btn" onclick="closeShareModal()">Done</button>
         </div>
       </div>
@@ -259,6 +267,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
