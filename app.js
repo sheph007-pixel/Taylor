@@ -1,6 +1,6 @@
 // ============================================================
-// Route Runner - Driver App
-// Simple: Tap route → Start delivering → Mark delivered → Next
+// Route Runner - Driver App (Waze-style)
+// Full-screen map, one turn at a time, voice guidance
 // ============================================================
 
 var state = {
@@ -13,13 +13,39 @@ var state = {
   routeName: '',
   estimate: null,
   tripStartTime: null,
-  tripEndTime: null
+  tripEndTime: null,
+  voiceEnabled: true,
+  currentSteps: [],
+  lastSpokenStep: -1,
+  lastSpokenArrival: -1
 };
 
 var navMap = null;
 var navRouteLayer = null;
 var userMarker = null;
 var stopMarker = null;
+
+// ============================================================
+// VOICE GUIDANCE (Web Speech API — free, built-in)
+// ============================================================
+function speak(text) {
+  if (!state.voiceEnabled) return;
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  var msg = new SpeechSynthesisUtterance(text);
+  msg.rate = 1.0;
+  msg.pitch = 1.0;
+  msg.volume = 1.0;
+  msg.lang = 'en-US';
+  window.speechSynthesis.speak(msg);
+}
+
+function toggleVoice() {
+  state.voiceEnabled = !state.voiceEnabled;
+  document.getElementById('voice-icon-on').style.display = state.voiceEnabled ? '' : 'none';
+  document.getElementById('voice-icon-off').style.display = state.voiceEnabled ? 'none' : '';
+  if (!state.voiceEnabled) window.speechSynthesis.cancel();
+}
 
 // ============================================================
 // SCREEN MANAGEMENT
@@ -77,7 +103,6 @@ function renderSavedRoutes(routes) {
     var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     var est = route.estimate;
 
-    // Check for saved progress
     var progress = getSavedProgress(name);
     var progressHtml = '';
     if (progress) {
@@ -123,7 +148,6 @@ function loadRoute(name) {
 
   showLoading('Getting your location...');
 
-  // Get driver GPS first, then load and optimize route from their location
   getDriverLocation(function(driverPos) {
     showLoading('Loading route...');
 
@@ -132,7 +156,6 @@ function loadRoute(name) {
       var route = doc.data();
       if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
 
-      // Re-optimize route from driver's current GPS location
       var stops = route.stops;
       if (driverPos && stops.length > 2) {
         showLoading('Optimizing route from your location...');
@@ -157,7 +180,6 @@ function loadRoute(name) {
   });
 }
 
-// Get driver's current GPS position (with timeout fallback)
 function getDriverLocation(callback) {
   if (!navigator.geolocation) { callback(null); return; }
   navigator.geolocation.getCurrentPosition(
@@ -169,7 +191,6 @@ function getDriverLocation(callback) {
   );
 }
 
-// Nearest-neighbor route optimization starting from driver's GPS
 function optimizeRouteFromGPS(stops, origin) {
   if (stops.length <= 1) return stops;
   var used = {};
@@ -200,73 +221,114 @@ function haversineDistance(a, b) {
 }
 
 // ============================================================
-// DELIVERY SCREEN
+// DELIVERY SCREEN (Waze-style)
 // ============================================================
 function showDeliveryScreen() {
   var stop = state.stops[state.currentStopIndex];
   if (!stop) { tripComplete(); return; }
 
   var total = state.stops.length;
-  var remaining = total - state.currentStopIndex;
 
-  document.getElementById('delivery-stop-number').textContent = state.currentStopIndex + 1;
-  document.getElementById('delivery-total').textContent = total;
+  // Update bottom card
   document.getElementById('delivery-company').textContent = stop.name;
   document.getElementById('delivery-address').textContent = stop.address;
-  document.getElementById('delivery-remaining').textContent = remaining + ' stop' + (remaining !== 1 ? 's' : '') + ' remaining';
-  document.getElementById('delivery-delivered-count').textContent = state.deliveredCount + ' delivered';
 
+  // Progress badge
+  document.getElementById('nav-stop-num').textContent = state.currentStopIndex + 1;
+  document.getElementById('nav-stop-total').textContent = total;
+
+  // Progress bar
   var pct = total > 0 ? ((state.currentStopIndex) / total * 100) : 0;
   document.getElementById('delivery-progress-fill').style.width = pct + '%';
 
-  // Show elapsed time
-  updateElapsedTime();
+  // Reset turn bar
+  document.getElementById('nav-turn-text').textContent = 'Calculating route...';
+  document.getElementById('nav-turn-distance').textContent = '';
+  document.getElementById('nav-turn-icon').innerHTML = getTurnIconSVG('straight');
 
-  // Update the all-stops list
-  renderStopList();
+  state.currentSteps = [];
+  state.lastSpokenStep = -1;
 
   showScreen('nav');
   startGPSTracking();
   navigateToStop(stop);
+
+  // Voice: announce the next stop
+  speak('Stop ' + (state.currentStopIndex + 1) + ' of ' + total + '. ' + stop.name + '. ' + stop.address);
 }
 
-function toggleStopList() {
-  var el = document.getElementById('driver-stop-list');
-  var txt = document.getElementById('stop-list-toggle-text');
-  if (el.style.display === 'none') {
-    el.style.display = 'block';
-    txt.textContent = 'Hide stop list';
-    renderStopList();
-  } else {
-    el.style.display = 'none';
-    txt.textContent = 'View all stops';
+// ============================================================
+// BIG TURN-BY-TURN DISPLAY (one step at a time)
+// ============================================================
+function updateTurnDisplay() {
+  var steps = state.currentSteps;
+  if (!steps || steps.length === 0) return;
+
+  // Find the next meaningful step (skip depart if we have more steps)
+  var nextStep = steps[0];
+  if (steps.length > 1 && steps[0].maneuver.type === 'depart') {
+    nextStep = steps[1];
+  }
+
+  // If the last step is arrive, show "Arrive" when it's the only step left
+  if (steps.length <= 2) {
+    var lastStep = steps[steps.length - 1];
+    if (lastStep.maneuver.type === 'arrive') {
+      nextStep = lastStep;
+    }
+  }
+
+  var direction = getDirection(nextStep.maneuver);
+  var instruction = formatInstruction(nextStep);
+  var dist = nextStep.distance;
+
+  document.getElementById('nav-turn-icon').innerHTML = getTurnIconSVG(direction);
+  document.getElementById('nav-turn-text').textContent = instruction;
+  document.getElementById('nav-turn-distance').textContent = dist > 0 ? formatDistance(dist) : '';
+
+  // Voice: speak next turn if we haven't already
+  var stepKey = instruction;
+  if (stepKey !== state._lastSpokenInstruction) {
+    state._lastSpokenInstruction = stepKey;
+    if (dist < 500) { // within ~0.3 miles
+      speak(instruction);
+    } else {
+      speak('In ' + formatDistance(dist) + ', ' + instruction);
+    }
   }
 }
 
-function renderStopList() {
-  var el = document.getElementById('driver-stop-list');
-  if (!el || el.style.display === 'none') return;
-  el.innerHTML = state.stops.map(function(s, i) {
-    var cls = 'driver-stop-item';
-    if (i < state.currentStopIndex) cls += ' done';
-    if (i === state.currentStopIndex) cls += ' current';
-    return '<div class="' + cls + '">' +
-      '<div class="driver-stop-badge">' + (i + 1) + '</div>' +
-      '<div class="driver-stop-info">' +
-        '<div class="driver-stop-name">' + escapeHtml(s.name) + '</div>' +
-        '<div class="driver-stop-addr">' + escapeHtml(s.address) + '</div>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+function getDirection(maneuver) {
+  if (!maneuver) return 'straight';
+  var mod = maneuver.modifier || '';
+  var type = maneuver.type || '';
+  if (type === 'arrive') return 'arrive';
+  if (mod.includes('left')) return 'left';
+  if (mod.includes('right')) return 'right';
+  if (type === 'roundabout') return 'roundabout';
+  return 'straight';
 }
 
-function updateElapsedTime() {
-  if (!state.tripStartTime) return;
-  var elapsed = (Date.now() - state.tripStartTime) / 1000 / 3600;
-  var el = document.getElementById('delivery-elapsed');
-  if (el) el.textContent = formatHoursShort(elapsed) + ' elapsed';
+function getTurnIconSVG(direction) {
+  if (direction === 'left') {
+    return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><polyline points="15 4 7 4 7 16"/><polyline points="11 8 7 4 3 8"/></svg>';
+  }
+  if (direction === 'right') {
+    return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><polyline points="9 4 17 4 17 16"/><polyline points="13 8 17 4 21 8"/></svg>';
+  }
+  if (direction === 'arrive') {
+    return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+  }
+  if (direction === 'roundabout') {
+    return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M12 16v5"/><polyline points="9 19 12 21 15 19"/></svg>';
+  }
+  // straight
+  return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg>';
 }
 
+// ============================================================
+// NAVIGATION
+// ============================================================
 function navigateToStop(stop) {
   if (!navMap) return;
 
@@ -289,7 +351,7 @@ function navigateToStop(stop) {
 
   var bounds = L.latLngBounds([[stop.lat, stop.lng]]);
   if (state.userLocation) bounds.extend([state.userLocation.lat, state.userLocation.lng]);
-  navMap.fitBounds(bounds, { padding: [60, 60] });
+  navMap.fitBounds(bounds, { padding: [80, 80] });
 }
 
 function fetchDirections(from, to) {
@@ -302,37 +364,19 @@ function fetchDirections(from, to) {
       var route = result.routes[0];
       if (navRouteLayer) navMap.removeLayer(navRouteLayer);
       var routeCoords = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-      navRouteLayer = L.polyline(routeCoords, { color: '#1a73e8', weight: 5, opacity: 0.9 }).addTo(navMap);
+      navRouteLayer = L.polyline(routeCoords, { color: '#1a73e8', weight: 6, opacity: 0.9 }).addTo(navMap);
 
       var mins = Math.round(route.duration / 60);
       document.getElementById('delivery-eta').textContent = mins < 1 ? '<1 min' : mins + ' min';
       document.getElementById('delivery-distance').textContent = formatDistance(route.distance);
 
-      renderDirectionSteps(route.legs[0].steps);
-      navMap.fitBounds(L.polyline(routeCoords).getBounds(), { padding: [60, 60] });
+      // Store steps for turn-by-turn
+      state.currentSteps = route.legs[0].steps;
+      updateTurnDisplay();
+
+      navMap.fitBounds(L.polyline(routeCoords).getBounds(), { padding: [80, 80] });
     }
   }).catch(function(err) { console.error('Directions error:', err); });
-}
-
-function renderDirectionSteps(steps) {
-  var container = document.getElementById('delivery-steps');
-  container.innerHTML = steps
-    .filter(function(s) { return s.maneuver.type !== 'arrive' || steps.length <= 2; })
-    .slice(0, 6)
-    .map(function(step) {
-      return '<div class="nav-step">' +
-        '<span class="step-icon">' + getStepIcon(step.maneuver) + '</span>' +
-        '<span class="step-text">' + formatInstruction(step) + '</span>' +
-        '<span class="step-dist">' + formatDistance(step.distance) + '</span>' +
-      '</div>';
-    }).join('');
-}
-
-function getStepIcon(maneuver) {
-  var mod = maneuver ? maneuver.modifier || '' : '';
-  if (mod.includes('left')) return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 4 7 4 7 16"/><polyline points="11 8 7 4 3 8"/></svg>';
-  if (mod.includes('right')) return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 4 17 4 17 16"/><polyline points="13 8 17 4 21 8"/></svg>';
-  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg>';
 }
 
 function formatInstruction(step) {
@@ -362,6 +406,8 @@ function markDelivered() {
   state.currentStopIndex++;
   saveProgress();
 
+  speak('Delivered! ' + (state.stops.length - state.currentStopIndex) + ' stops left.');
+
   if (state.currentStopIndex >= state.stops.length) {
     tripComplete();
   } else {
@@ -374,6 +420,8 @@ function skipStop() {
   state.skippedCount++;
   state.currentStopIndex++;
   saveProgress();
+
+  speak('Skipped. Moving to next stop.');
 
   if (state.currentStopIndex >= state.stops.length) {
     tripComplete();
@@ -405,6 +453,7 @@ function pauseTrip() {
     state.stops[state.currentStopIndex] ? state.stops[state.currentStopIndex].name : 'None';
   document.getElementById('paused-remaining').textContent = remaining + ' stops remaining';
 
+  speak('Trip paused.');
   showScreen('paused');
 }
 
@@ -419,7 +468,7 @@ function endTrip() {
 }
 
 // ============================================================
-// TRIP COMPLETE — Show financials
+// TRIP COMPLETE
 // ============================================================
 function tripComplete() {
   stopGPSTracking();
@@ -432,16 +481,14 @@ function tripComplete() {
   document.getElementById('complete-route-name').textContent = state.routeName;
   document.getElementById('complete-time').textContent = formatHoursShort(actualHours);
 
-  // Financial summary
   var financialEl = document.getElementById('complete-financials');
   var est = state.estimate;
 
   if (est) {
     var actualLabor = actualHours * 20;
-    var actualGas = est.totalMiles * 0.18; // use estimated miles (we don't track actual GPS miles)
+    var actualGas = est.totalMiles * 0.18;
     var actualSubtotal = actualLabor + actualGas;
     var actualWithCushion = actualSubtotal * 1.25;
-
     var profitable = est.suggestedPrice >= actualSubtotal;
 
     financialEl.innerHTML =
@@ -461,7 +508,6 @@ function tripComplete() {
       '<div class="financial-row"><span>Should have charged:</span><strong>$' + actualWithCushion.toFixed(0) + '</strong></div>';
     financialEl.style.display = 'block';
   } else {
-    // No estimate — just show time
     var minCharge = actualHours * 20 * 1.25;
     financialEl.innerHTML =
       '<h3>Trip Financials</h3>' +
@@ -471,6 +517,7 @@ function tripComplete() {
     financialEl.style.display = 'block';
   }
 
+  speak('All done! ' + state.deliveredCount + ' delivered.');
   clearProgress();
   showScreen('complete');
 }
@@ -479,7 +526,8 @@ function newTrip() {
   state = {
     stops: [], currentStopIndex: 0, deliveredCount: 0, skippedCount: 0,
     userLocation: null, watchId: null, routeName: '', estimate: null,
-    tripStartTime: null, tripEndTime: null
+    tripStartTime: null, tripEndTime: null, voiceEnabled: true,
+    currentSteps: [], lastSpokenStep: -1, lastSpokenArrival: -1
   };
   navMap = null; navRouteLayer = null; userMarker = null; stopMarker = null;
   document.getElementById('nav-map').innerHTML = '';
@@ -509,10 +557,23 @@ function startGPSTracking() {
       state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       updateUserMarker();
       checkProximity();
+      // Re-fetch directions periodically as driver moves
+      refreshDirectionsThrottled();
     },
     function(err) { console.log('GPS:', err.message); },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
   );
+}
+
+var _lastDirectionsFetch = 0;
+function refreshDirectionsThrottled() {
+  var now = Date.now();
+  if (now - _lastDirectionsFetch < 15000) return; // every 15s max
+  _lastDirectionsFetch = now;
+  var stop = state.stops[state.currentStopIndex];
+  if (stop && state.userLocation) {
+    fetchDirections(state.userLocation, stop);
+  }
 }
 
 function stopGPSTracking() {
@@ -525,7 +586,7 @@ function updateUserMarker() {
     userMarker.setLatLng([state.userLocation.lat, state.userLocation.lng]);
   } else {
     userMarker = L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
-      radius: 8, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 3
+      radius: 10, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 3
     }).addTo(navMap);
   }
 }
@@ -535,7 +596,16 @@ function checkProximity() {
   if (!stop || !state.userLocation) return;
   var dist = getDistanceMeters(state.userLocation.lat, state.userLocation.lng, stop.lat, stop.lng);
   var banner = document.getElementById('arrived-banner');
-  if (dist < 150) { banner.classList.remove('hidden'); } else { banner.classList.add('hidden'); }
+  if (dist < 150) {
+    banner.classList.remove('hidden');
+    // Voice announce arrival once per stop
+    if (state.lastSpokenArrival !== state.currentStopIndex) {
+      state.lastSpokenArrival = state.currentStopIndex;
+      speak("You've arrived at " + stop.name);
+    }
+  } else {
+    banner.classList.add('hidden');
+  }
 }
 
 function getDistanceMeters(lat1, lng1, lat2, lng2) {
@@ -549,11 +619,11 @@ function getDistanceMeters(lat1, lng1, lat2, lng2) {
 }
 
 // ============================================================
-// NAV MAP
+// NAV MAP (full screen)
 // ============================================================
 function initNavMap() {
   if (navMap) { navMap.invalidateSize(); return; }
-  navMap = L.map('nav-map', { zoomControl: false });
+  navMap = L.map('nav-map', { zoomControl: false, attributionControl: false });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(navMap);
   var stop = state.stops[state.currentStopIndex];
   if (stop) navigateToStop(stop);
@@ -640,7 +710,4 @@ function escapeAttr(str) {
 document.addEventListener('DOMContentLoaded', function() {
   loadRoutesFromFirebase();
   checkFirebaseProgress();
-
-  // Update elapsed time every 30 seconds
-  setInterval(updateElapsedTime, 30000);
 });

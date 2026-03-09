@@ -31,79 +31,68 @@
     </div>
   </div>
 
-  <!-- SCREEN 2: Navigation / Delivery (the main screen) -->
+  <!-- SCREEN 2: Navigation / Delivery — WAZE-STYLE full screen map -->
   <div id="screen-nav" class="screen">
-    <div id="nav-map" class="nav-map"></div>
+    <!-- Full screen map -->
+    <div id="nav-map" class="nav-map-fullscreen"></div>
+
+    <!-- TOP: Next turn instruction (big, glanceable) -->
+    <div id="nav-turn-bar" class="nav-turn-bar">
+      <div class="nav-turn-icon" id="nav-turn-icon"></div>
+      <div class="nav-turn-info">
+        <div class="nav-turn-distance" id="nav-turn-distance"></div>
+        <div class="nav-turn-text" id="nav-turn-text">Calculating route...</div>
+      </div>
+    </div>
+
+    <!-- TOP-RIGHT: Mini progress badge -->
+    <div id="nav-progress-badge" class="nav-progress-badge">
+      <span id="nav-stop-num">1</span>/<span id="nav-stop-total">1</span>
+    </div>
 
     <!-- "You're here!" banner -->
     <div id="arrived-banner" class="arrived-banner hidden">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
       You're here!
     </div>
 
-    <div class="delivery-panel">
+    <!-- BOTTOM: Destination + Actions -->
+    <div class="nav-bottom-card">
       <!-- Progress bar -->
-      <div class="delivery-progress">
-        <div class="delivery-progress-fill" id="delivery-progress-fill"></div>
+      <div class="nav-bottom-progress">
+        <div class="nav-bottom-progress-fill" id="delivery-progress-fill"></div>
       </div>
 
-      <div class="delivery-header">
-        <div class="delivery-badge" id="delivery-stop-number">1</div>
-        <div class="delivery-meta">
-          <span id="delivery-remaining">0 stops remaining</span>
-          <span class="delivery-dot">&middot;</span>
-          <span id="delivery-delivered-count">0 delivered</span>
-          <span class="delivery-dot">&middot;</span>
-          <span id="delivery-elapsed" class="delivery-elapsed"></span>
-        </div>
-        <div class="delivery-of">of <span id="delivery-total">0</span></div>
-      </div>
-
-      <div class="delivery-destination">
-        <h2 id="delivery-company">Loading...</h2>
-        <p id="delivery-address" class="delivery-addr"></p>
-      </div>
-
-      <div class="delivery-eta-row">
-        <div class="delivery-eta-box">
-          <span class="eta-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
-          <span id="delivery-eta">--</span>
-        </div>
-        <div class="delivery-eta-box">
-          <span class="eta-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L12 22M2 12h20"/></svg></span>
-          <span id="delivery-distance">--</span>
-        </div>
-        <button class="btn-google-maps" onclick="openInMaps()">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          Maps
-        </button>
-      </div>
-
-      <!-- Turn-by-turn directions -->
-      <div id="delivery-steps" class="delivery-steps"></div>
-
-      <!-- Upcoming stops toggle -->
-      <button class="btn-stop-list-toggle" id="btn-stop-list-toggle" onclick="toggleStopList()">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-        <span id="stop-list-toggle-text">View all stops</span>
-      </button>
-      <div id="driver-stop-list" class="driver-stop-list" style="display:none"></div>
-
-      <!-- Main actions -->
-      <div class="delivery-actions">
-        <button class="btn-delivered btn-huge" onclick="markDelivered()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-          Delivered
-        </button>
-        <div class="delivery-secondary-actions">
-          <button class="btn-skip-small" onclick="skipStop()">Skip</button>
-          <button class="btn-pause-small" onclick="pauseTrip()">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-            Pause
+      <div class="nav-bottom-destination">
+        <div class="nav-bottom-name" id="delivery-company">Loading...</div>
+        <div class="nav-bottom-address" id="delivery-address"></div>
+        <div class="nav-bottom-eta-row">
+          <span class="nav-eta-chip" id="delivery-eta">--</span>
+          <span class="nav-eta-chip" id="delivery-distance">--</span>
+          <button class="nav-maps-btn" onclick="openInMaps()">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Maps
           </button>
         </div>
       </div>
+
+      <div class="nav-bottom-actions">
+        <button class="nav-btn-delivered" onclick="markDelivered()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="28" height="28"><polyline points="20 6 9 17 4 12"/></svg>
+          Delivered
+        </button>
+        <div class="nav-bottom-secondary">
+          <button class="nav-btn-skip" onclick="skipStop()">Skip</button>
+          <button class="nav-btn-pause" onclick="pauseTrip()">Pause</button>
+        </div>
+      </div>
     </div>
+
+    <!-- Voice toggle -->
+    <button id="voice-toggle" class="nav-voice-toggle" onclick="toggleVoice()">
+      <svg id="voice-icon-on" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      <svg id="voice-icon-off" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+    </button>
   </div>
 
   <!-- SCREEN 3: Paused -->
