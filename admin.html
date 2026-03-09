@@ -211,7 +211,7 @@
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script>
     // State
@@ -388,7 +388,7 @@
       btn.textContent = 'Saving...';
 
       try {
-        await db.ref('routes/' + name).set({
+        await db.collection('routes').doc(name).set({
           stops: geocodedStops,
           savedAt: Date.now(),
           stopCount: geocodedStops.length
@@ -399,7 +399,6 @@
         showStatus('Route "' + name + '" saved! Driver can now see it on their phone.', 'success');
         loadSavedRoutes();
 
-        // Reset after 3 seconds
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = 'Save Route';
@@ -408,40 +407,42 @@
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Save Route';
-        showStatus('Failed to save. Check Firebase config.', 'error');
+        showStatus('Failed to save. Check Firebase config. Error: ' + err.message, 'error');
         console.error(err);
       }
     }
 
     // Load and display existing routes from Firebase
     function loadSavedRoutes() {
-      db.ref('routes').on('value', (snapshot) => {
-        const routes = snapshot.val() || {};
-        const keys = Object.keys(routes);
+      db.collection('routes').onSnapshot(function(snapshot) {
         const el = document.getElementById('saved-routes');
+        const docs = snapshot.docs;
 
-        if (keys.length === 0) {
+        if (docs.length === 0) {
           el.style.display = 'none';
           return;
         }
 
         el.style.display = 'block';
         el.innerHTML = '<h3>Saved Routes</h3>' +
-          keys.map(name => {
-            const r = routes[name];
+          docs.map(function(doc) {
+            const r = doc.data();
+            const name = doc.id;
             return '<div class="saved-route">' +
               '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
               '<div class="saved-route-meta">' + r.stopCount + ' stops</div></div>' +
               '<button class="btn-delete" onclick="deleteRoute(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">Delete</button>' +
             '</div>';
           }).join('');
+      }, function(err) {
+        console.error('Firestore error:', err);
       });
     }
 
     async function deleteRoute(name) {
       if (!confirm('Delete "' + name + '"?')) return;
       try {
-        await db.ref('routes/' + name).remove();
+        await db.collection('routes').doc(name).delete();
         showStatus('Deleted "' + name + '".', 'info');
       } catch (err) {
         showStatus('Failed to delete.', 'error');

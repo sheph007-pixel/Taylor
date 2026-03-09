@@ -52,8 +52,11 @@ function loadRoutesFromFirebase() {
   var msgEl = document.getElementById('no-routes-msg');
   if (msgEl) msgEl.textContent = 'Loading routes...';
 
-  db.ref('routes').on('value', function(snapshot) {
-    var routes = snapshot.val() || {};
+  db.collection('routes').onSnapshot(function(snapshot) {
+    var routes = {};
+    snapshot.docs.forEach(function(doc) {
+      routes[doc.id] = doc.data();
+    });
     renderSavedRoutes(routes);
   }, function(err) {
     if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
@@ -90,10 +93,14 @@ function renderSavedRoutes(routes) {
 }
 
 function loadRoute(name) {
-  db.ref('routes/' + name).once('value', function(snapshot) {
-    var route = snapshot.val();
-    if (!route || !route.stops) {
+  db.collection('routes').doc(name).get().then(function(doc) {
+    if (!doc.exists) {
       alert('Route not found.');
+      return;
+    }
+    var route = doc.data();
+    if (!route || !route.stops) {
+      alert('Route has no stops.');
       return;
     }
 
@@ -105,6 +112,9 @@ function loadRoute(name) {
 
     renderStopsList();
     showScreen('review');
+  }).catch(function(err) {
+    alert('Failed to load route.');
+    console.error(err);
   });
 }
 
