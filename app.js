@@ -121,28 +121,82 @@ function loadRoute(name) {
     }
   }
 
-  showLoading('Loading route...');
+  showLoading('Getting your location...');
 
-  db.collection('routes').doc(name).get().then(function(doc) {
-    if (!doc.exists) { hideLoading(); alert('Route not found.'); return; }
-    var route = doc.data();
-    if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
+  // Get driver GPS first, then load and optimize route from their location
+  getDriverLocation(function(driverPos) {
+    showLoading('Loading route...');
 
-    state.routeName = name;
-    state.stops = route.stops;
-    state.currentStopIndex = 0;
-    state.deliveredCount = 0;
-    state.skippedCount = 0;
-    state.estimate = route.estimate || null;
-    state.tripStartTime = Date.now();
+    db.collection('routes').doc(name).get().then(function(doc) {
+      if (!doc.exists) { hideLoading(); alert('Route not found.'); return; }
+      var route = doc.data();
+      if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
 
-    hideLoading();
-    showDeliveryScreen();
-  }).catch(function(err) {
-    hideLoading();
-    alert('Failed to load route.');
-    console.error(err);
+      // Re-optimize route from driver's current GPS location
+      var stops = route.stops;
+      if (driverPos && stops.length > 2) {
+        showLoading('Optimizing route from your location...');
+        stops = optimizeRouteFromGPS(stops, driverPos);
+      }
+
+      state.routeName = name;
+      state.stops = stops;
+      state.currentStopIndex = 0;
+      state.deliveredCount = 0;
+      state.skippedCount = 0;
+      state.estimate = route.estimate || null;
+      state.tripStartTime = Date.now();
+
+      hideLoading();
+      showDeliveryScreen();
+    }).catch(function(err) {
+      hideLoading();
+      alert('Failed to load route.');
+      console.error(err);
+    });
   });
+}
+
+// Get driver's current GPS position (with timeout fallback)
+function getDriverLocation(callback) {
+  if (!navigator.geolocation) { callback(null); return; }
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      callback({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+    },
+    function() { callback(null); },
+    { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+  );
+}
+
+// Nearest-neighbor route optimization starting from driver's GPS
+function optimizeRouteFromGPS(stops, origin) {
+  if (stops.length <= 1) return stops;
+  var used = {};
+  var ordered = [];
+  var current = origin;
+
+  for (var step = 0; step < stops.length; step++) {
+    var nearest = -1, nearestDist = Infinity;
+    for (var i = 0; i < stops.length; i++) {
+      if (used[i]) continue;
+      var d = haversineDistance(current, stops[i]);
+      if (d < nearestDist) { nearestDist = d; nearest = i; }
+    }
+    used[nearest] = true;
+    ordered.push(stops[nearest]);
+    current = stops[nearest];
+  }
+  return ordered;
+}
+
+function haversineDistance(a, b) {
+  var R = 3959;
+  var dLat = (b.lat - a.lat) * Math.PI / 180;
+  var dLng = (b.lng - a.lng) * Math.PI / 180;
+  var s1 = Math.sin(dLat / 2), s2 = Math.sin(dLng / 2);
+  var x = s1 * s1 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * s2 * s2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
 // ============================================================
@@ -168,9 +222,42 @@ function showDeliveryScreen() {
   // Show elapsed time
   updateElapsedTime();
 
+  // Update the all-stops list
+  renderStopList();
+
   showScreen('nav');
   startGPSTracking();
   navigateToStop(stop);
+}
+
+function toggleStopList() {
+  var el = document.getElementById('driver-stop-list');
+  var txt = document.getElementById('stop-list-toggle-text');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    txt.textContent = 'Hide stop list';
+    renderStopList();
+  } else {
+    el.style.display = 'none';
+    txt.textContent = 'View all stops';
+  }
+}
+
+function renderStopList() {
+  var el = document.getElementById('driver-stop-list');
+  if (!el || el.style.display === 'none') return;
+  el.innerHTML = state.stops.map(function(s, i) {
+    var cls = 'driver-stop-item';
+    if (i < state.currentStopIndex) cls += ' done';
+    if (i === state.currentStopIndex) cls += ' current';
+    return '<div class="' + cls + '">' +
+      '<div class="driver-stop-badge">' + (i + 1) + '</div>' +
+      '<div class="driver-stop-info">' +
+        '<div class="driver-stop-name">' + escapeHtml(s.name) + '</div>' +
+        '<div class="driver-stop-addr">' + escapeHtml(s.address) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 
 function updateElapsedTime() {
