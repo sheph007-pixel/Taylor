@@ -127,24 +127,11 @@ function renderSavedRoutes(routes) {
 }
 
 // ============================================================
-// LOAD ROUTE
+// LOAD ROUTE → Show preview screen first
 // ============================================================
 function loadRoute(name) {
   var progress = getSavedProgress(name);
-  if (progress && progress.currentStopIndex < progress.stops.length) {
-    var remaining = progress.stops.length - progress.currentStopIndex;
-    if (confirm('Resume "' + name + '"? ' + progress.deliveredCount + ' delivered, ' + remaining + ' remaining.')) {
-      state.stops = progress.stops;
-      state.currentStopIndex = progress.currentStopIndex;
-      state.deliveredCount = progress.deliveredCount;
-      state.skippedCount = progress.skippedCount;
-      state.routeName = name;
-      state.estimate = progress.estimate || null;
-      state.tripStartTime = progress.tripStartTime || Date.now();
-      showDeliveryScreen();
-      return;
-    }
-  }
+  var isResume = progress && progress.currentStopIndex < progress.stops.length;
 
   showLoading('Getting your location...');
 
@@ -156,28 +143,90 @@ function loadRoute(name) {
       var route = doc.data();
       if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
 
-      var stops = route.stops;
-      if (driverPos && stops.length > 2) {
-        showLoading('Optimizing route from your location...');
-        stops = optimizeRouteFromGPS(stops, driverPos);
+      if (isResume) {
+        // Resuming — use saved progress
+        state.stops = progress.stops;
+        state.currentStopIndex = progress.currentStopIndex;
+        state.deliveredCount = progress.deliveredCount;
+        state.skippedCount = progress.skippedCount;
+        state.routeName = name;
+        state.estimate = progress.estimate || null;
+        state.tripStartTime = progress.tripStartTime || Date.now();
+      } else {
+        // Fresh start — optimize from GPS
+        var stops = route.stops;
+        if (driverPos && stops.length > 2) {
+          showLoading('Optimizing route from your location...');
+          stops = optimizeRouteFromGPS(stops, driverPos);
+        }
+        state.routeName = name;
+        state.stops = stops;
+        state.currentStopIndex = 0;
+        state.deliveredCount = 0;
+        state.skippedCount = 0;
+        state.estimate = route.estimate || null;
+        state.tripStartTime = Date.now();
       }
 
-      state.routeName = name;
-      state.stops = stops;
-      state.currentStopIndex = 0;
-      state.deliveredCount = 0;
-      state.skippedCount = 0;
-      state.estimate = route.estimate || null;
-      state.tripStartTime = Date.now();
-
       hideLoading();
-      showDeliveryScreen();
+      showStartScreen(isResume);
     }).catch(function(err) {
       hideLoading();
       alert('Failed to load route.');
       console.error(err);
     });
   });
+}
+
+// ============================================================
+// START SCREEN — Preview before driving
+// ============================================================
+function showStartScreen(isResume) {
+  var total = state.stops.length;
+  var remaining = total - state.currentStopIndex;
+  var nextStop = state.stops[state.currentStopIndex];
+
+  document.getElementById('start-route-name').textContent = state.routeName;
+  document.getElementById('start-stop-count').textContent = total + ' stop' + (total !== 1 ? 's' : '');
+
+  // Estimate
+  var est = state.estimate;
+  if (est) {
+    document.getElementById('start-estimate').textContent = '~' + formatHoursShort(est.totalHours);
+    document.getElementById('start-estimate-row').style.display = '';
+    document.getElementById('start-price').textContent = '$' + est.suggestedPrice.toFixed(0) + ' suggested';
+    document.getElementById('start-price-row').style.display = '';
+  } else {
+    document.getElementById('start-estimate-row').style.display = 'none';
+    document.getElementById('start-price-row').style.display = 'none';
+  }
+
+  // First / next stop
+  if (nextStop) {
+    document.getElementById('start-first-label').textContent = isResume ? 'Next stop' : 'First stop';
+    document.getElementById('start-first-name').textContent = nextStop.name;
+    document.getElementById('start-first-addr').textContent = nextStop.address;
+  }
+
+  // Resume info
+  var resumeInfo = document.getElementById('start-resume-info');
+  if (isResume) {
+    resumeInfo.style.display = '';
+    document.getElementById('start-resume-text').textContent =
+      state.deliveredCount + ' delivered, ' + remaining + ' remaining';
+    document.getElementById('start-go-btn').innerHTML =
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg> Resume Route';
+  } else {
+    resumeInfo.style.display = 'none';
+    document.getElementById('start-go-btn').innerHTML =
+      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg> Start Route';
+  }
+
+  showScreen('start');
+}
+
+function startRoute() {
+  showDeliveryScreen();
 }
 
 function getDriverLocation(callback) {

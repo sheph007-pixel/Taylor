@@ -31,6 +31,54 @@
     </div>
   </div>
 
+  <!-- SCREEN 1.5: Route Preview / Start -->
+  <div id="screen-start" class="screen">
+    <div class="start-container">
+      <button class="start-back-btn" onclick="showScreen('upload')">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+
+      <div class="start-icon">
+        <svg viewBox="0 0 24 24" width="64" height="64" fill="none" stroke="#1a73e8" stroke-width="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      </div>
+
+      <h2 class="start-route-name" id="start-route-name">Route Name</h2>
+
+      <div class="start-details">
+        <div class="start-detail-row">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span id="start-stop-count">0 stops</span>
+        </div>
+        <div class="start-detail-row" id="start-estimate-row" style="display:none">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span id="start-estimate">--</span>
+        </div>
+        <div class="start-detail-row" id="start-price-row" style="display:none">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          <span id="start-price">--</span>
+        </div>
+      </div>
+
+      <div class="start-first-stop" id="start-first-stop">
+        <div class="start-first-label" id="start-first-label">First stop</div>
+        <div class="start-first-name" id="start-first-name">--</div>
+        <div class="start-first-addr" id="start-first-addr">--</div>
+      </div>
+
+      <div class="start-resume-info" id="start-resume-info" style="display:none">
+        <div class="start-resume-badge" id="start-resume-badge">Resuming</div>
+        <div class="start-resume-text" id="start-resume-text"></div>
+      </div>
+
+      <div class="start-actions">
+        <button class="start-go-btn" id="start-go-btn" onclick="startRoute()">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
+          Start Route
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- SCREEN 2: Navigation / Delivery — WAZE-STYLE full screen map -->
   <div id="screen-nav" class="screen">
     <!-- Full screen map -->

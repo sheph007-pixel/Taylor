@@ -830,6 +830,131 @@ html, body {
   font-weight: 500;
 }
 
+/* ============ START / PREVIEW SCREEN ============ */
+.start-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+}
+.start-back-btn {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: var(--gray-100);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-700);
+}
+.start-back-btn:active { background: var(--gray-200); }
+.start-icon {
+  margin-bottom: 16px;
+}
+.start-route-name {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--gray-900);
+  margin-bottom: 20px;
+}
+.start-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  width: 100%;
+  max-width: 280px;
+}
+.start-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+.start-detail-row svg {
+  color: var(--blue);
+  flex-shrink: 0;
+}
+.start-first-stop {
+  background: var(--blue-light);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+.start-first-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+.start-first-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+.start-first-addr {
+  font-size: 14px;
+  color: var(--gray-500);
+  margin-top: 2px;
+}
+.start-resume-info {
+  margin-bottom: 16px;
+}
+.start-resume-badge {
+  display: inline-block;
+  background: var(--orange);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 12px;
+  border-radius: 12px;
+  margin-bottom: 6px;
+}
+.start-resume-text {
+  font-size: 15px;
+  color: var(--gray-700);
+  font-weight: 600;
+}
+.start-actions {
+  width: 100%;
+  max-width: 320px;
+}
+.start-go-btn {
+  width: 100%;
+  padding: 22px;
+  background: var(--green);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 22px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+}
+.start-go-btn:active { background: var(--green-dark); }
+
 /* ============ NAVIGATION / DELIVERY — WAZE STYLE ============ */
 
 /* Full-screen map */
