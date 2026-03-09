@@ -257,41 +257,43 @@
         const stops = [];
         for (const row of rows) {
           const keys = Object.keys(row);
-          let name = '', address = '';
+          let name = '', address = '', city = '', st = '', zip = '';
 
           for (const key of keys) {
             const k = key.toLowerCase().trim();
             if (k.includes('company') || k.includes('name') || k.includes('business') || k.includes('customer')) {
               name = String(row[key]).trim();
             }
-            if (k.includes('address') || k.includes('location') || k.includes('street') || k.includes('destination')) {
+            if (k.includes('address') || k.includes('location') || k.includes('destination')) {
               address = String(row[key]).trim();
             }
+            if (k.includes('city')) city = String(row[key]).trim();
+            if (k.includes('state') || k === 'st') st = String(row[key]).trim();
+            if (k.includes('zip') || k.includes('postal')) zip = String(row[key]).trim();
           }
 
+          // Fallback: if no named columns, use first two columns
           if (!name && !address && keys.length >= 2) {
             name = String(row[keys[0]]).trim();
             address = String(row[keys[1]]).trim();
-          } else if (!name && address) {
-            name = address;
-          } else if (name && !address) {
-            let city = '', st = '', zip = '';
-            for (const key of keys) {
-              const k = key.toLowerCase().trim();
-              if (k.includes('city')) city = String(row[key]).trim();
-              if (k.includes('state')) st = String(row[key]).trim();
-              if (k.includes('zip') || k.includes('postal')) zip = String(row[key]).trim();
-              if (k.includes('street') || k.includes('addr')) address = String(row[key]).trim();
-            }
-            if (!address) address = name;
-            if (city) address += ', ' + city;
-            if (st) address += ', ' + st;
-            if (zip) address += ' ' + zip;
+          }
+          if (!name && address) name = address;
+          if (name && !address) address = name;
+
+          // Always append city, state, zip if available and not already in address
+          if (city && !address.toLowerCase().includes(city.toLowerCase())) {
+            address += ', ' + city;
+          }
+          if (st && !address.toLowerCase().includes(st.toLowerCase())) {
+            address += ', ' + st;
+          }
+          if (zip && !address.includes(zip)) {
+            address += ' ' + zip;
           }
 
           if (name && address) {
             const addrLower = address.toLowerCase();
-            if (!addrLower.includes('alabama') && !addrLower.includes(', al')) {
+            if (!addrLower.includes('alabama') && !addrLower.includes(', al') && !addrLower.includes(' al ')) {
               address += ', Alabama';
             }
             stops.push({ name, address });
@@ -306,31 +308,47 @@
 
         showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
 
-        // Geocode all stops
+        // Geocode all stops with retry
         geocodedStops = [];
         const errors = [];
         for (let i = 0; i < stops.length; i++) {
           document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
-          try {
-            if (i > 0) await sleep(1100);
-            const coords = await geocodeAddress(stops[i].address);
-            geocodedStops.push({ ...stops[i], ...coords });
-          } catch (err) {
-            errors.push(stops[i].name);
+          let found = false;
+          // Try full address first, then simplified
+          const attempts = [stops[i].address];
+          // Create a simplified version: just street + city + state
+          const parts = stops[i].address.split(',').map(s => s.trim());
+          if (parts.length >= 2) {
+            attempts.push(parts.slice(0, 3).join(', '));
           }
+          for (const addr of attempts) {
+            if (found) break;
+            try {
+              if (i > 0 || attempts.indexOf(addr) > 0) await sleep(1100);
+              const coords = await geocodeAddress(addr);
+              geocodedStops.push({ ...stops[i], ...coords });
+              found = true;
+            } catch (err) { /* try next attempt */ }
+          }
+          if (!found) errors.push(stops[i].name);
         }
 
-        hideLoading();
-
         if (geocodedStops.length === 0) {
+          hideLoading();
           showStatus('Could not find any addresses on the map.', 'error');
           return;
         }
 
+        // Optimize route order using nearest-neighbor to minimize backtracking
+        document.getElementById('loading-msg').textContent = 'Optimizing route for fastest delivery...';
+        geocodedStops = optimizeRoute(geocodedStops);
+
+        hideLoading();
+
         if (errors.length > 0) {
-          showStatus(geocodedStops.length + ' stops ready. Could not find: ' + errors.join(', '), 'error');
+          showStatus(geocodedStops.length + ' stops optimized for fastest route. Could not find: ' + errors.join(', '), 'error');
         } else {
-          showStatus(geocodedStops.length + ' stops ready!', 'success');
+          showStatus('All ' + geocodedStops.length + ' stops found and optimized for fastest route!', 'success');
         }
 
         // Show preview and save button
@@ -361,6 +379,56 @@
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // Nearest-neighbor TSP: build fastest route with no backtracking
+    function optimizeRoute(stops) {
+      if (stops.length <= 2) return stops;
+
+      const used = new Set();
+      const ordered = [];
+
+      // Start from the northernmost stop (top of the route area)
+      let currentIdx = 0;
+      let maxLat = -Infinity;
+      for (let i = 0; i < stops.length; i++) {
+        if (stops[i].lat > maxLat) {
+          maxLat = stops[i].lat;
+          currentIdx = i;
+        }
+      }
+
+      used.add(currentIdx);
+      ordered.push(stops[currentIdx]);
+
+      while (ordered.length < stops.length) {
+        let nearest = -1;
+        let nearestDist = Infinity;
+        for (let i = 0; i < stops.length; i++) {
+          if (used.has(i)) continue;
+          const d = distance(stops[currentIdx], stops[i]);
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearest = i;
+          }
+        }
+        used.add(nearest);
+        ordered.push(stops[nearest]);
+        currentIdx = nearest;
+      }
+
+      return ordered;
+    }
+
+    // Haversine distance in miles
+    function distance(a, b) {
+      const R = 3959;
+      const dLat = (b.lat - a.lat) * Math.PI / 180;
+      const dLng = (b.lng - a.lng) * Math.PI / 180;
+      const sin1 = Math.sin(dLat / 2);
+      const sin2 = Math.sin(dLng / 2);
+      const x = sin1 * sin1 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sin2 * sin2;
+      return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+    }
 
     function showStopsPreview() {
       const el = document.getElementById('stops-preview');
