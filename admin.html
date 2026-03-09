@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v2</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v3</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 2; // bump to force cache clear
+    const CODE_VERSION = 3; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -342,7 +342,7 @@
 
         // Parse stops — detect column mapping first
         const stops = [];
-        const colMap = { name: null, address: null, city: null, state: null, zip: null, street: null };
+        const colMap = { name: null, address: null, city: null, state: null, zip: null, street: null, suite: null };
         if (rows.length > 0) {
           const keys = Object.keys(rows[0]);
           for (const key of keys) {
@@ -350,6 +350,7 @@
             if (!colMap.name && (k.includes('company') || k.includes('business') || k.includes('customer') || k === 'name' || k.includes('client'))) colMap.name = key;
             if (!colMap.address && (k.includes('address') || k.includes('location') || k.includes('destination'))) colMap.address = key;
             if (!colMap.street && (k.includes('street') || k === 'st' || k.includes('addr line') || k.includes('address 1') || k.includes('addr1'))) colMap.street = key;
+            if (!colMap.suite && (k.includes('suite') || k.includes('unit') || k.includes('apt') || k.includes('ste') || k.includes('room') || k.includes('floor'))) colMap.suite = key;
             if (!colMap.city && (k.includes('city') || k.includes('town') || k.includes('municipality') || k.includes('locale'))) colMap.city = key;
             if (!colMap.state && (k.includes('state') || k.includes('province') || (k === 'st' && !colMap.street))) colMap.state = key;
             if (!colMap.zip && (k.includes('zip') || k.includes('postal') || k.includes('post code'))) colMap.zip = key;
@@ -368,6 +369,7 @@
           let name = colMap.name ? String(row[colMap.name] || '').trim() : '';
           let street = colMap.street ? String(row[colMap.street] || '').trim() : '';
           let address = colMap.address ? String(row[colMap.address] || '').trim() : '';
+          let suite = colMap.suite ? String(row[colMap.suite] || '').trim() : '';
           let city = colMap.city ? String(row[colMap.city] || '').trim() : '';
           let st = colMap.state ? String(row[colMap.state] || '').trim() : '';
           let zip = colMap.zip ? String(row[colMap.zip] || '').trim() : '';
@@ -380,8 +382,12 @@
           if (!name && address) name = address;
           if (name && !address) address = name;
 
-          // Build full display address from components
+          // Default city to Birmingham if no city column (most AL deliveries are Birmingham area)
+          if (!city && !colMap.city) city = 'Birmingham';
+
+          // Build full display address: street, suite, city, state zip
           let fullAddress = address;
+          if (suite) fullAddress += ' ' + suite;
           if (city && !fullAddress.toLowerCase().includes(city.toLowerCase())) fullAddress += ', ' + city;
           if (st) {
             const stLower = st.toLowerCase();
@@ -390,23 +396,21 @@
           }
           if (zip && !fullAddress.includes(zip)) fullAddress += ' ' + zip;
 
-          // Build a clean geocode-only address (no company name, just location parts)
+          // Build a clean geocode-only address (address + city + state + zip, no company name, no suite)
           let geocodeAddr = '';
-          if (street) geocodeAddr = street;
-          else if (address && address !== name) geocodeAddr = address;
-          if (city) {
-            if (geocodeAddr && !geocodeAddr.toLowerCase().includes(city.toLowerCase())) geocodeAddr += ', ' + city;
-            else if (!geocodeAddr) geocodeAddr = city;
-          }
-          if (st && geocodeAddr && !geocodeAddr.toLowerCase().includes(st.toLowerCase())) geocodeAddr += ', ' + st;
-          if (zip && geocodeAddr && !geocodeAddr.includes(zip)) geocodeAddr += ' ' + zip;
-          // Default Alabama if no state
+          if (address && address !== name) geocodeAddr = address;
+          else if (street) geocodeAddr = street;
+          // Always add city for geocoding
           if (geocodeAddr) {
-            const gLower = geocodeAddr.toLowerCase();
-            if (!gLower.includes('alabama') && !gLower.includes(', al') && !gLower.includes(' al ')) geocodeAddr += ', Alabama';
+            if (!geocodeAddr.toLowerCase().includes(city.toLowerCase())) geocodeAddr += ', ' + city;
+          } else {
+            geocodeAddr = city;
           }
-          // Fallback: use full address if geocodeAddr is empty
-          if (!geocodeAddr) geocodeAddr = fullAddress;
+          if (st && !geocodeAddr.toLowerCase().includes(st.toLowerCase())) geocodeAddr += ', ' + st;
+          if (zip && !geocodeAddr.includes(zip)) geocodeAddr += ' ' + zip;
+          // Ensure Alabama context
+          const gLower = geocodeAddr.toLowerCase();
+          if (!gLower.includes('alabama') && !gLower.includes(', al') && !gLower.includes(' al ')) geocodeAddr += ', Alabama';
 
           if (name && fullAddress) {
             const addrLower = fullAddress.toLowerCase();
