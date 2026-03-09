@@ -461,8 +461,8 @@
             if (d > maxMiles) { removed.push(s.name); return false; }
             return true;
           });
-          if (removed.length > 0) {
-            errors = errors.concat(removed.map(function(n) { return n + ' (bad location)'; }));
+          for (var r = 0; r < removed.length; r++) {
+            errors.push(removed[r] + ' (bad location)');
           }
         }
 
