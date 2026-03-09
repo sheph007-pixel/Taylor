@@ -493,8 +493,8 @@
       const avgSpeedMph = 25;
       const drivingHours = totalMiles / avgSpeedMph;
 
-      // Delivery time: ~3 min per stop (park, walk in, drop off magazines, walk back)
-      const deliveryMinPerStop = 3;
+      // Delivery time: ~5 min per stop (find parking, walk in, drop off magazines, walk back)
+      const deliveryMinPerStop = 5;
       const deliveryHours = (stops.length * deliveryMinPerStop) / 60;
 
       const totalHours = drivingHours + deliveryHours;
@@ -544,8 +544,7 @@
           'Deliveries: ~' + formatHours(e.deliveryHours) + ' (' + e.stopCount + ' stops x 3 min each)<br>' +
           'Driver pay (' + formatHours(e.totalHours) + ' x $20/hr): <strong>$' + e.laborCost.toFixed(2) + '</strong><br>' +
           'Gas (' + e.totalMiles.toFixed(0) + ' mi x $0.18/mi): <strong>$' + e.gasCost.toFixed(2) + '</strong><br>' +
-          '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong><br>' +
-          'Driving: ' + e.drivingMinutes + ' min + Delivery: ~' + e.deliveryMinutes + ' min (' + e.stopCount + ' stops x 2 min)' +
+          '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong>' +
         '</div>';
     }
 
