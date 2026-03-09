@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v9</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v10</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 9; // bump to force cache clear
+    const CODE_VERSION = 10; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -440,17 +440,46 @@
             found = true;
           } catch (err) { /* try fallback */ }
 
-          // Fallback: free-form search with full string
+          // Fallback 1: free-form with city included (helps shopping centers, plazas)
           if (!found) {
             try {
               if (needsDelay) await sleep(1000);
               needsDelay = true;
-              const query = s.rawStreet + ', Alabama ' + (s.zip || '');
-              const result = await geocodeAddress(query);
+              const parts = [s.rawStreet];
+              if (s.city) parts.push(s.city);
+              parts.push(s.state || 'Alabama');
+              if (s.zip) parts.push(s.zip);
+              const result = await geocodeAddress(parts.join(', '));
               geocodeCache[cacheKey] = result;
               geocodedStops.push({ name: s.name, address: buildAddr(result.city), lat: result.lat, lng: result.lng });
               found = true;
             } catch (err2) { /* try next */ }
+          }
+
+          // Fallback 2: search by business name + city
+          if (!found && s.name) {
+            try {
+              if (needsDelay) await sleep(1000);
+              needsDelay = true;
+              const query = s.name + (s.city ? ', ' + s.city : '') + ', Alabama';
+              const result = await geocodeAddress(query);
+              geocodeCache[cacheKey] = result;
+              geocodedStops.push({ name: s.name, address: buildAddr(result.city), lat: result.lat, lng: result.lng });
+              found = true;
+            } catch (err3) { /* try next */ }
+          }
+
+          // Fallback 3: use zip code centroid (approximate location, better than skipping)
+          if (!found && s.zip) {
+            try {
+              if (needsDelay) await sleep(1000);
+              needsDelay = true;
+              const result = await geocodeAddress(s.zip + ', Alabama');
+              geocodeCache[cacheKey] = result;
+              geocodedStops.push({ name: s.name, address: buildAddr(result.city), lat: result.lat, lng: result.lng });
+              found = true;
+              console.warn('ZIP FALLBACK:', s.name, '- using zip centroid for', s.zip);
+            } catch (err4) { /* give up */ }
           }
 
           if (!found) {
