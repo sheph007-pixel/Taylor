@@ -451,9 +451,8 @@
         document.getElementById('loading-msg').textContent = 'Optimizing route...';
         geocodedStops = optimizeRoute(geocodedStops);
 
-        // Calculate trip estimate with OSRM
-        document.getElementById('loading-msg').textContent = 'Calculating trip estimate...';
-        routeEstimate = await calculateTripEstimate(geocodedStops);
+        // Calculate trip estimate
+        routeEstimate = calculateTripEstimate(geocodedStops);
 
         hideLoading();
 
@@ -479,57 +478,43 @@
     }
 
     // ============================================================
-    // TRIP COST ESTIMATE
+    // TRIP COST ESTIMATE — simple math, no OSRM needed
     // ============================================================
-    async function calculateTripEstimate(stops) {
-      // Use OSRM to get real driving distance/time for the full route
-      const coords = stops.map(s => s.lng + ',' + s.lat).join(';');
-
-      // OSRM has a limit of ~100 coords per request, batch if needed
-      let totalDistance = 0; // meters
-      let totalDuration = 0; // seconds
-      const batchSize = 90;
-
-      for (let i = 0; i < stops.length - 1; i += batchSize) {
-        const batch = stops.slice(i, Math.min(i + batchSize + 1, stops.length));
-        if (batch.length < 2) break;
-        const batchCoords = batch.map(s => s.lng + ',' + s.lat).join(';');
-        try {
-          const res = await fetch('https://router.project-osrm.org/route/v1/driving/' + batchCoords + '?overview=false');
-          const result = await res.json();
-          if (result.code === 'Ok') {
-            totalDistance += result.routes[0].distance;
-            totalDuration += result.routes[0].duration;
-          }
-        } catch (e) {
-          console.error('OSRM estimate error:', e);
-        }
+    function calculateTripEstimate(stops) {
+      // Calculate total driving distance using haversine between consecutive stops
+      // Multiply by 1.3 for road factor (roads aren't straight lines)
+      let straightLineMiles = 0;
+      for (let i = 0; i < stops.length - 1; i++) {
+        straightLineMiles += distance(stops[i], stops[i + 1]);
       }
+      const totalMiles = straightLineMiles * 1.3; // road winding factor
 
-      // Add ~2 min per stop for parking/walking/delivering
-      const deliveryTimePerStop = 2 * 60; // 2 min in seconds
-      const totalDeliveryTime = stops.length * deliveryTimePerStop;
-      const totalTime = totalDuration + totalDeliveryTime;
+      // Driving time: assume 25 mph avg for local Birmingham delivery (city streets, parking, etc.)
+      const avgSpeedMph = 25;
+      const drivingHours = totalMiles / avgSpeedMph;
 
-      const totalMiles = totalDistance / 1609.34;
-      const totalHours = totalTime / 3600;
+      // Delivery time: ~3 min per stop (park, walk in, drop off magazines, walk back)
+      const deliveryMinPerStop = 3;
+      const deliveryHours = (stops.length * deliveryMinPerStop) / 60;
 
-      // Pricing: $20/hr base + gas cost + 25% cushion
-      const gasPerMile = 0.18; // ~$3.50/gal at ~20mpg (delivery driving, city)
+      const totalHours = drivingHours + deliveryHours;
+
+      // Pricing: hourly rate x total hours, plus gas, plus cushion
       const hourlyRate = 20;
+      const gasPerMile = 0.18; // ~$3.50/gal at ~20mpg city
       const cushionPct = 0.25;
 
-      const gasCost = totalMiles * gasPerMile;
       const laborCost = totalHours * hourlyRate;
-      const subtotal = gasCost + laborCost;
+      const gasCost = totalMiles * gasPerMile;
+      const subtotal = laborCost + gasCost;
       const cushion = subtotal * cushionPct;
       const suggestedPrice = subtotal + cushion;
       const perStop = suggestedPrice / stops.length;
 
       return {
         totalMiles: totalMiles,
-        drivingMinutes: Math.round(totalDuration / 60),
-        deliveryMinutes: Math.round(totalDeliveryTime / 60),
+        drivingHours: drivingHours,
+        deliveryHours: deliveryHours,
         totalHours: totalHours,
         gasCost: gasCost,
         laborCost: laborCost,
@@ -548,13 +533,15 @@
       el.innerHTML =
         '<h3>Trip Estimate</h3>' +
         '<div class="estimate-grid">' +
-          '<div class="estimate-item"><div class="estimate-value price">$' + e.suggestedPrice.toFixed(0) + '</div><div class="estimate-label">Suggested Charge</div></div>' +
+          '<div class="estimate-item"><div class="estimate-value price">$' + e.suggestedPrice.toFixed(0) + '</div><div class="estimate-label">Charge This</div></div>' +
           '<div class="estimate-item"><div class="estimate-value">' + formatHours(e.totalHours) + '</div><div class="estimate-label">Est. Total Time</div></div>' +
-          '<div class="estimate-item"><div class="estimate-value">' + e.totalMiles.toFixed(0) + ' mi</div><div class="estimate-label">Total Driving</div></div>' +
+          '<div class="estimate-item"><div class="estimate-value">' + e.totalMiles.toFixed(0) + ' mi</div><div class="estimate-label">Est. Driving</div></div>' +
           '<div class="estimate-item"><div class="estimate-value">$' + e.perStop.toFixed(2) + '</div><div class="estimate-label">Per Stop</div></div>' +
         '</div>' +
         '<div class="estimate-breakdown">' +
-          '<strong>Breakdown:</strong><br>' +
+          '<strong>How we got this:</strong><br>' +
+          'Driving: ~' + formatHours(e.drivingHours) + ' (' + e.totalMiles.toFixed(0) + ' mi at 25 mph avg)<br>' +
+          'Deliveries: ~' + formatHours(e.deliveryHours) + ' (' + e.stopCount + ' stops x 3 min each)<br>' +
           'Driver pay (' + formatHours(e.totalHours) + ' x $20/hr): <strong>$' + e.laborCost.toFixed(2) + '</strong><br>' +
           'Gas (' + e.totalMiles.toFixed(0) + ' mi x $0.18/mi): <strong>$' + e.gasCost.toFixed(2) + '</strong><br>' +
           '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong><br>' +
