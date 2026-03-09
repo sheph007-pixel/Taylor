@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Route Runner - Admin</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8f9fa;
+      color: #202124;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+    }
+    .container { max-width: 480px; width: 100%; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .subtitle { color: #5f6368; font-size: 14px; margin-bottom: 24px; }
+
+    .upload-box {
+      width: 100%;
+      padding: 32px 24px;
+      border: 2px dashed #dadce0;
+      border-radius: 12px;
+      text-align: center;
+      cursor: pointer;
+      background: white;
+      transition: all 0.2s;
+      margin-bottom: 16px;
+    }
+    .upload-box:hover, .upload-box.dragover {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+    }
+    .upload-icon { font-size: 36px; margin-bottom: 8px; }
+    .upload-text { font-weight: 600; }
+    .upload-hint { font-size: 13px; color: #5f6368; margin-top: 4px; }
+
+    .route-name-section {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      margin-bottom: 16px;
+    }
+    .route-name-section label { font-weight: 600; font-size: 14px; display: block; margin-bottom: 8px; }
+    .route-name-input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #dadce0;
+      border-radius: 10px;
+      font-size: 16px;
+      font-family: inherit;
+      outline: none;
+    }
+    .route-name-input:focus { border-color: #1a73e8; }
+
+    .status {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .status.success { background: #e6f4ea; color: #1e8e3e; }
+    .status.error { background: #fce8e6; color: #ea4335; }
+    .status.info { background: #e8f0fe; color: #1a73e8; }
+    .hidden { display: none; }
+
+    .stops-preview {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .stops-preview h3 {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #5f6368;
+      border-bottom: 1px solid #e8eaed;
+    }
+    .stop-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 16px;
+      gap: 10px;
+      border-bottom: 1px solid #f1f3f4;
+    }
+    .stop-item:last-child { border-bottom: none; }
+    .stop-num {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #e8f0fe;
+      color: #1a73e8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .stop-name { font-weight: 600; font-size: 14px; }
+    .stop-addr { font-size: 12px; color: #5f6368; }
+
+    .btn {
+      width: 100%;
+      padding: 16px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      margin-bottom: 12px;
+    }
+    .btn:hover { background: #1557b0; }
+    .btn:disabled { background: #dadce0; cursor: not-allowed; }
+    .btn.success { background: #34a853; }
+
+    .saved-routes {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      margin-top: 24px;
+      overflow: hidden;
+    }
+    .saved-routes h3 {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #5f6368;
+      border-bottom: 1px solid #e8eaed;
+    }
+    .saved-route {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f3f4;
+    }
+    .saved-route:last-child { border-bottom: none; }
+    .saved-route-name { font-weight: 600; }
+    .saved-route-meta { font-size: 12px; color: #5f6368; }
+    .btn-delete {
+      padding: 6px 12px;
+      background: none;
+      border: 1px solid #ea4335;
+      color: #ea4335;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 100;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #e8eaed;
+      border-top-color: #1a73e8;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Route Runner Admin</h1>
+    <p class="subtitle">Upload delivery routes for your drivers</p>
+
+    <div class="upload-box" id="upload-box">
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
+      <div class="upload-icon">&#128194;</div>
+      <p class="upload-text">Tap to upload delivery list</p>
+      <p class="upload-hint">CSV or Excel with company names & addresses</p>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+
+    <div class="route-name-section" id="name-section" style="display:none">
+      <label for="route-name">Route Name</label>
+      <input type="text" id="route-name" class="route-name-input" placeholder="e.g. Vestavia, Monday Downtown" maxlength="50">
+    </div>
+
+    <div id="stops-preview" class="stops-preview" style="display:none"></div>
+
+    <button id="btn-save" class="btn" style="display:none" onclick="saveToFirebase()">Save Route</button>
+
+    <div id="saved-routes" class="saved-routes" style="display:none"></div>
+  </div>
+
+  <div id="loading" class="loading-overlay hidden">
+    <div class="spinner"></div>
+    <p id="loading-msg">Loading...</p>
+  </div>
+
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <script>
+    // State
+    let geocodedStops = [];
+
+    // Upload handling
+    const uploadBox = document.getElementById('upload-box');
+    const fileInput = document.getElementById('file-input');
+
+    uploadBox.addEventListener('click', () => fileInput.click());
+    uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+    uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+    uploadBox.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadBox.classList.remove('dragover');
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) handleFile(fileInput.files[0]);
+    });
+
+    async function handleFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (!['csv', 'xlsx', 'xls'].includes(ext)) {
+        showStatus('Please upload a CSV or Excel file.', 'error');
+        return;
+      }
+
+      showLoading('Reading file...');
+
+      try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data, { type: 'array' });
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+        if (!rows || rows.length === 0) {
+          hideLoading();
+          showStatus('File is empty.', 'error');
+          return;
+        }
+
+        // Parse stops
+        const stops = [];
+        for (const row of rows) {
+          const keys = Object.keys(row);
+          let name = '', address = '';
+
+          for (const key of keys) {
+            const k = key.toLowerCase().trim();
+            if (k.includes('company') || k.includes('name') || k.includes('business') || k.includes('customer')) {
+              name = String(row[key]).trim();
+            }
+            if (k.includes('address') || k.includes('location') || k.includes('street') || k.includes('destination')) {
+              address = String(row[key]).trim();
+            }
+          }
+
+          if (!name && !address && keys.length >= 2) {
+            name = String(row[keys[0]]).trim();
+            address = String(row[keys[1]]).trim();
+          } else if (!name && address) {
+            name = address;
+          } else if (name && !address) {
+            let city = '', st = '', zip = '';
+            for (const key of keys) {
+              const k = key.toLowerCase().trim();
+              if (k.includes('city')) city = String(row[key]).trim();
+              if (k.includes('state')) st = String(row[key]).trim();
+              if (k.includes('zip') || k.includes('postal')) zip = String(row[key]).trim();
+              if (k.includes('street') || k.includes('addr')) address = String(row[key]).trim();
+            }
+            if (!address) address = name;
+            if (city) address += ', ' + city;
+            if (st) address += ', ' + st;
+            if (zip) address += ' ' + zip;
+          }
+
+          if (name && address) {
+            const addrLower = address.toLowerCase();
+            if (!addrLower.includes('alabama') && !addrLower.includes(', al')) {
+              address += ', Alabama';
+            }
+            stops.push({ name, address });
+          }
+        }
+
+        if (stops.length === 0) {
+          hideLoading();
+          showStatus('No valid stops found. Need columns for company name and address.', 'error');
+          return;
+        }
+
+        showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
+
+        // Geocode all stops
+        geocodedStops = [];
+        const errors = [];
+        for (let i = 0; i < stops.length; i++) {
+          document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
+          try {
+            if (i > 0) await sleep(1100);
+            const coords = await geocodeAddress(stops[i].address);
+            geocodedStops.push({ ...stops[i], ...coords });
+          } catch (err) {
+            errors.push(stops[i].name);
+          }
+        }
+
+        hideLoading();
+
+        if (geocodedStops.length === 0) {
+          showStatus('Could not find any addresses on the map.', 'error');
+          return;
+        }
+
+        if (errors.length > 0) {
+          showStatus(geocodedStops.length + ' stops ready. Could not find: ' + errors.join(', '), 'error');
+        } else {
+          showStatus(geocodedStops.length + ' stops ready!', 'success');
+        }
+
+        // Show preview and save button
+        showStopsPreview();
+        document.getElementById('name-section').style.display = 'block';
+        document.getElementById('btn-save').style.display = 'block';
+
+        // Auto-fill route name from filename
+        const baseName = file.name.replace(/\.(csv|xlsx|xls)$/i, '');
+        document.getElementById('route-name').value = baseName;
+
+      } catch (err) {
+        hideLoading();
+        showStatus('Failed to read file.', 'error');
+        console.error(err);
+      }
+    }
+
+    async function geocodeAddress(address) {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+        encodeURIComponent(address) + '&limit=1&countrycodes=us';
+      const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
+      const results = await res.json();
+      if (results.length > 0) {
+        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+      }
+      throw new Error('Not found: ' + address);
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    function showStopsPreview() {
+      const el = document.getElementById('stops-preview');
+      el.style.display = 'block';
+      el.innerHTML = '<h3>' + geocodedStops.length + ' Stops</h3>' +
+        geocodedStops.map((s, i) =>
+          '<div class="stop-item">' +
+            '<div class="stop-num">' + (i + 1) + '</div>' +
+            '<div><div class="stop-name">' + escapeHtml(s.name) + '</div>' +
+            '<div class="stop-addr">' + escapeHtml(s.address) + '</div></div>' +
+          '</div>'
+        ).join('');
+    }
+
+    async function saveToFirebase() {
+      const name = document.getElementById('route-name').value.trim();
+      if (!name) {
+        showStatus('Please enter a route name.', 'error');
+        document.getElementById('route-name').focus();
+        return;
+      }
+
+      const btn = document.getElementById('btn-save');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        await db.ref('routes/' + name).set({
+          stops: geocodedStops,
+          savedAt: Date.now(),
+          stopCount: geocodedStops.length
+        });
+
+        btn.textContent = 'Saved!';
+        btn.classList.add('success');
+        showStatus('Route "' + name + '" saved! Driver can now see it on their phone.', 'success');
+        loadSavedRoutes();
+
+        // Reset after 3 seconds
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = 'Save Route';
+          btn.classList.remove('success');
+        }, 3000);
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Save Route';
+        showStatus('Failed to save. Check Firebase config.', 'error');
+        console.error(err);
+      }
+    }
+
+    // Load and display existing routes from Firebase
+    function loadSavedRoutes() {
+      db.ref('routes').on('value', (snapshot) => {
+        const routes = snapshot.val() || {};
+        const keys = Object.keys(routes);
+        const el = document.getElementById('saved-routes');
+
+        if (keys.length === 0) {
+          el.style.display = 'none';
+          return;
+        }
+
+        el.style.display = 'block';
+        el.innerHTML = '<h3>Saved Routes</h3>' +
+          keys.map(name => {
+            const r = routes[name];
+            return '<div class="saved-route">' +
+              '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
+              '<div class="saved-route-meta">' + r.stopCount + ' stops</div></div>' +
+              '<button class="btn-delete" onclick="deleteRoute(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+            '</div>';
+          }).join('');
+      });
+    }
+
+    async function deleteRoute(name) {
+      if (!confirm('Delete "' + name + '"?')) return;
+      try {
+        await db.ref('routes/' + name).remove();
+        showStatus('Deleted "' + name + '".', 'info');
+      } catch (err) {
+        showStatus('Failed to delete.', 'error');
+      }
+    }
+
+    function showStatus(msg, type) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = 'status ' + type;
+      el.classList.remove('hidden');
+    }
+
+    function showLoading(msg) {
+      document.getElementById('loading-msg').textContent = msg;
+      document.getElementById('loading').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+      document.getElementById('loading').classList.add('hidden');
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    // Init
+    loadSavedRoutes();
+  </script>
+</body>
+</html>
