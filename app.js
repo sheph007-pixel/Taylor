@@ -1,38 +1,33 @@
 // ============================================================
-// Route Runner - Driver App (reads routes from Firebase)
+// Route Runner - Driver App
+// Simple: Tap route → Start delivering → Mark delivered → Next
 // ============================================================
 
-let state = {
+var state = {
   stops: [],
-  geocodedStops: [],
-  optimizedStops: [],
-  routeData: null,
   currentStopIndex: 0,
   deliveredCount: 0,
   skippedCount: 0,
   userLocation: null,
-  isPaused: false,
   watchId: null,
-  routeName: ''
+  routeName: '',
+  routeGeometry: null,
+  currentLegData: null
 };
 
-let routeMap = null;
-let navMap = null;
-let navRouteLayer = null;
-let userMarker = null;
+var navMap = null;
+var navRouteLayer = null;
+var userMarker = null;
+var stopMarker = null;
 
 // ============================================================
 // SCREEN MANAGEMENT
 // ============================================================
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
   document.getElementById('screen-' + id).classList.add('active');
-
-  if (id === 'route' && !routeMap) {
-    setTimeout(() => initRouteMap(), 100);
-  }
   if (id === 'nav') {
-    setTimeout(() => initNavMap(), 100);
+    setTimeout(function() { initNavMap(); }, 100);
   }
 }
 
@@ -67,14 +62,11 @@ function loadRoutesFromFirebase() {
 function renderSavedRoutes(routes) {
   var keys = Object.keys(routes || {});
   var list = document.getElementById('saved-routes-list');
-  var section = document.getElementById('saved-routes-section');
 
   if (keys.length === 0) {
     list.innerHTML = '<p style="text-align:center;color:#9aa0a6;padding:20px;font-size:14px;">No routes yet. Ask your admin to upload one.</p>';
     return;
   }
-
-  section.classList.remove('hidden');
 
   // Sort by most recent
   keys.sort(function(a, b) { return (routes[b].savedAt || 0) - (routes[a].savedAt || 0); });
@@ -83,210 +75,184 @@ function renderSavedRoutes(routes) {
     var route = routes[name];
     var date = new Date(route.savedAt);
     var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    // Check if there's saved progress for this route
+    var progress = getSavedProgress(name);
+    var progressHtml = '';
+    if (progress) {
+      var remaining = progress.stops.length - progress.currentStopIndex;
+      progressHtml = '<div class="saved-route-progress">' + progress.deliveredCount + ' done, ' + remaining + ' left</div>';
+    }
+
     return '<div class="saved-route-card">' +
       '<div class="saved-route-info" onclick="loadRoute(\'' + escapeAttr(name) + '\')">' +
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
+        progressHtml +
       '</div>' +
     '</div>';
   }).join('');
 }
 
+// ============================================================
+// LOAD ROUTE - Skip review, go straight to delivery
+// ============================================================
 function loadRoute(name) {
+  // Check for saved progress first
+  var progress = getSavedProgress(name);
+  if (progress && progress.currentStopIndex < progress.stops.length) {
+    var remaining = progress.stops.length - progress.currentStopIndex;
+    if (confirm('Resume "' + name + '"? ' + progress.deliveredCount + ' delivered, ' + remaining + ' remaining.')) {
+      state.stops = progress.stops;
+      state.currentStopIndex = progress.currentStopIndex;
+      state.deliveredCount = progress.deliveredCount;
+      state.skippedCount = progress.skippedCount;
+      state.routeName = name;
+      showDeliveryScreen();
+      return;
+    }
+  }
+
+  showLoading('Loading route...');
+
   db.collection('routes').doc(name).get().then(function(doc) {
     if (!doc.exists) {
+      hideLoading();
       alert('Route not found.');
       return;
     }
     var route = doc.data();
-    if (!route || !route.stops) {
+    if (!route || !route.stops || route.stops.length === 0) {
+      hideLoading();
       alert('Route has no stops.');
       return;
     }
 
     state.routeName = name;
-    state.geocodedStops = route.stops;
-    state.stops = route.stops.map(function(s) {
-      return { name: s.name, address: s.address, delivered: false };
-    });
+    state.stops = route.stops;
+    state.currentStopIndex = 0;
+    state.deliveredCount = 0;
+    state.skippedCount = 0;
 
-    renderStopsList();
-    showScreen('review');
+    hideLoading();
+    showDeliveryScreen();
   }).catch(function(err) {
+    hideLoading();
     alert('Failed to load route.');
     console.error(err);
   });
 }
 
 // ============================================================
-// REVIEW STOPS
+// DELIVERY SCREEN - The main driver view
 // ============================================================
-function renderStopsList() {
-  var list = document.getElementById('stops-list');
-  document.getElementById('stop-count').textContent = state.geocodedStops.length + ' stops';
-
-  list.innerHTML = state.geocodedStops.map(function(stop, i) {
-    return '<div class="stop-card" data-index="' + i + '">' +
-      '<div class="stop-num">' + (i + 1) + '</div>' +
-      '<div class="stop-info">' +
-        '<div class="stop-name">' + escapeHtml(stop.name) + '</div>' +
-        '<div class="stop-addr">' + escapeHtml(stop.address) + '</div>' +
-      '</div>' +
-      '<button class="stop-remove" onclick="removeStop(' + i + ')" aria-label="Remove stop">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
-      '</button>' +
-    '</div>';
-  }).join('');
-}
-
-function removeStop(index) {
-  state.geocodedStops.splice(index, 1);
-  renderStopsList();
-  if (state.geocodedStops.length === 0) showScreen('upload');
-}
-
-function goToUpload() {
-  state.stops = [];
-  state.geocodedStops = [];
-  showScreen('upload');
-}
-
-function goToReview() {
-  showScreen('review');
-}
-
-// ============================================================
-// ROUTE OPTIMIZATION (OSRM)
-// ============================================================
-async function optimizeRoute() {
-  var btn = document.getElementById('btn-optimize');
-  btn.disabled = true;
-  btn.querySelector('.btn-content').textContent = 'Optimizing...';
-  btn.querySelector('.btn-loader').classList.remove('hidden');
-
-  try {
-    var pos = await getCurrentPosition();
-    state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-    document.getElementById('start-label').textContent = 'GPS Location Found';
-  } catch (e) {
-    state.userLocation = { lat: 33.5186, lng: -86.8104 };
-    document.getElementById('start-label').textContent = 'Birmingham, AL (default)';
+function showDeliveryScreen() {
+  var stop = state.stops[state.currentStopIndex];
+  if (!stop) {
+    tripComplete();
+    return;
   }
 
-  var stopsWithStart = [
-    { name: 'Start', address: 'Current Location', lat: state.userLocation.lat, lng: state.userLocation.lng, isStart: true }
-  ].concat(state.geocodedStops);
+  var total = state.stops.length;
+  var remaining = total - state.currentStopIndex;
 
-  try {
-    var coords = stopsWithStart.map(function(s) { return s.lng + ',' + s.lat; }).join(';');
-    var url = 'https://router.project-osrm.org/trip/v1/driving/' + coords +
-      '?overview=full&geometries=geojson&steps=true&annotations=true&source=first&roundtrip=false';
+  document.getElementById('delivery-stop-number').textContent = state.currentStopIndex + 1;
+  document.getElementById('delivery-total').textContent = total;
+  document.getElementById('delivery-company').textContent = stop.name;
+  document.getElementById('delivery-address').textContent = stop.address;
+  document.getElementById('delivery-remaining').textContent = remaining + ' stop' + (remaining !== 1 ? 's' : '') + ' remaining';
+  document.getElementById('delivery-delivered-count').textContent = state.deliveredCount + ' delivered';
 
-    var result;
-    try {
-      var res = await fetch(url);
-      result = await res.json();
-    } catch (e) {
-      result = { code: 'Error' };
-    }
+  // Update progress bar
+  var pct = total > 0 ? ((state.currentStopIndex) / total * 100) : 0;
+  document.getElementById('delivery-progress-fill').style.width = pct + '%';
 
-    var routeData;
-
-    if (result.code === 'Ok') {
-      var waypoints = result.waypoints;
-      var orderedStops = new Array(stopsWithStart.length);
-      for (var i = 0; i < waypoints.length; i++) {
-        orderedStops[waypoints[i].waypoint_index] = stopsWithStart[i];
-      }
-
-      var legs = result.trips[0].legs;
-      var directions = [];
-      for (var i = 0; i < legs.length; i++) {
-        var legSteps = legs[i].steps.map(function(step) {
-          return {
-            instruction: formatInstruction(step),
-            distance: step.distance,
-            duration: step.duration,
-            name: step.name || '',
-            maneuver: step.maneuver
-          };
-        });
-        directions.push({
-          toStop: i + 1,
-          stopName: orderedStops[i + 1] ? orderedStops[i + 1].name : '',
-          steps: legSteps,
-          distance: legs[i].distance,
-          duration: legs[i].duration
-        });
-      }
-
-      routeData = {
-        stops: orderedStops,
-        geometry: result.trips[0].geometry,
-        totalDistance: result.trips[0].distance,
-        totalDuration: result.trips[0].duration,
-        directions: directions
-      };
-    } else {
-      routeData = await getSimpleRoute(stopsWithStart);
-    }
-
-    state.routeData = routeData;
-    state.optimizedStops = routeData.stops;
-    state.currentStopIndex = 1;
-    state.deliveredCount = 0;
-    state.skippedCount = 0;
-
-    renderRouteOverview();
-    document.getElementById('route-title').textContent = state.routeName || 'Your Route';
-    showScreen('route');
-  } catch (err) {
-    alert('Failed to calculate route. Please try again.');
-    console.error(err);
-  }
-
-  resetOptimizeBtn();
+  showScreen('nav');
+  startGPSTracking();
+  navigateToStop(stop);
 }
 
-async function getSimpleRoute(stops) {
-  var coords = stops.map(function(s) { return s.lng + ',' + s.lat; }).join(';');
+function navigateToStop(stop) {
+  if (!navMap) return;
+
+  // Clear old route and markers
+  if (navRouteLayer) { navMap.removeLayer(navRouteLayer); navRouteLayer = null; }
+  if (stopMarker) { navMap.removeLayer(stopMarker); stopMarker = null; }
+
+  // Add stop marker
+  stopMarker = L.marker([stop.lat, stop.lng], {
+    icon: L.divIcon({
+      className: '',
+      html: '<div class="custom-marker current">' + (state.currentStopIndex + 1) + '</div>',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    })
+  }).addTo(navMap);
+
+  // Get driving directions from current location (or previous stop)
+  var from = state.userLocation ||
+    (state.currentStopIndex > 0 ? state.stops[state.currentStopIndex - 1] : null);
+
+  if (from) {
+    fetchDirections(from, stop);
+  }
+
+  // Fit map to show stop (and user if available)
+  var bounds = L.latLngBounds([[stop.lat, stop.lng]]);
+  if (state.userLocation) bounds.extend([state.userLocation.lat, state.userLocation.lng]);
+  navMap.fitBounds(bounds, { padding: [60, 60] });
+}
+
+function fetchDirections(from, to) {
+  var coords = from.lng + ',' + from.lat + ';' + to.lng + ',' + to.lat;
   var url = 'https://router.project-osrm.org/route/v1/driving/' + coords +
     '?overview=full&geometries=geojson&steps=true';
 
-  var res = await fetch(url);
-  var result = await res.json();
+  fetch(url).then(function(res) { return res.json(); }).then(function(result) {
+    if (result.code === 'Ok') {
+      var route = result.routes[0];
 
-  if (result.code !== 'Ok') throw new Error('Could not calculate route');
+      // Draw route on map
+      if (navRouteLayer) navMap.removeLayer(navRouteLayer);
+      var routeCoords = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+      navRouteLayer = L.polyline(routeCoords, { color: '#1a73e8', weight: 5, opacity: 0.9 }).addTo(navMap);
 
-  var route = result.routes[0];
-  var legs = route.legs;
-  var directions = [];
-  for (var i = 0; i < legs.length; i++) {
-    var legSteps = legs[i].steps.map(function(step) {
-      return {
-        instruction: formatInstruction(step),
-        distance: step.distance,
-        duration: step.duration,
-        name: step.name || '',
-        maneuver: step.maneuver
-      };
-    });
-    directions.push({
-      toStop: i + 1,
-      stopName: stops[i + 1] ? stops[i + 1].name : '',
-      steps: legSteps,
-      distance: legs[i].distance,
-      duration: legs[i].duration
-    });
-  }
+      // Update ETA
+      var mins = Math.round(route.duration / 60);
+      document.getElementById('delivery-eta').textContent = mins < 1 ? '<1 min' : mins + ' min';
+      document.getElementById('delivery-distance').textContent = formatDistance(route.distance);
 
-  return {
-    stops: stops,
-    geometry: route.geometry,
-    totalDistance: route.distance,
-    totalDuration: route.duration,
-    directions: directions
-  };
+      // Show turn-by-turn steps
+      var steps = route.legs[0].steps;
+      renderDirectionSteps(steps);
+
+      // Fit map to route
+      navMap.fitBounds(L.polyline(routeCoords).getBounds(), { padding: [60, 60] });
+    }
+  }).catch(function(err) {
+    console.error('Directions error:', err);
+  });
+}
+
+function renderDirectionSteps(steps) {
+  var container = document.getElementById('delivery-steps');
+  container.innerHTML = steps
+    .filter(function(s) { return s.maneuver.type !== 'arrive' || steps.length <= 2; })
+    .slice(0, 6)
+    .map(function(step) {
+      return '<div class="nav-step">' +
+        '<span class="step-icon">' + getStepIcon(step.maneuver) + '</span>' +
+        '<span class="step-text">' + formatInstruction(step) + '</span>' +
+        '<span class="step-dist">' + formatDistance(step.distance) + '</span>' +
+      '</div>';
+    }).join('');
+}
+
+function getStepIcon(maneuver) {
+  var mod = maneuver ? maneuver.modifier || '' : '';
+  if (mod.includes('left')) return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 4 7 4 7 16"/><polyline points="11 8 7 4 3 8"/></svg>';
+  if (mod.includes('right')) return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 4 17 4 17 16"/><polyline points="13 8 17 4 21 8"/></svg>';
+  return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg>';
 }
 
 function formatInstruction(step) {
@@ -298,249 +264,109 @@ function formatInstruction(step) {
   if (type === 'arrive') return 'Arrive at destination';
   if (type === 'turn') return 'Turn ' + modifier + ' onto ' + name;
   if (type === 'merge') return 'Merge ' + modifier + ' onto ' + name;
-  if (type === 'fork') return 'Take the ' + modifier + ' fork onto ' + name;
-  if (type === 'roundabout') return 'At the roundabout, take exit onto ' + name;
+  if (type === 'fork') return 'Take the ' + modifier + ' fork';
+  if (type === 'roundabout') return 'At roundabout, exit onto ' + name;
   if (type === 'new name') return 'Continue onto ' + name;
   if (type === 'end of road') return 'Turn ' + modifier + ' onto ' + name;
-  if (type === 'continue') return 'Continue ' + modifier + ' on ' + name;
-  if (type === 'on ramp' || type === 'off ramp') return 'Take the ramp ' + modifier + ' onto ' + name;
+  if (type === 'continue') return 'Continue on ' + name;
   if (modifier) return modifier.charAt(0).toUpperCase() + modifier.slice(1) + ' onto ' + name;
   return 'Continue on ' + name;
 }
 
-function resetOptimizeBtn() {
-  var btn = document.getElementById('btn-optimize');
-  btn.disabled = false;
-  btn.querySelector('.btn-content').textContent = 'Optimize Route';
-  btn.querySelector('.btn-loader').classList.add('hidden');
-}
-
-function getCurrentPosition() {
-  return new Promise(function(resolve, reject) {
-    if (!navigator.geolocation) return reject(new Error('No GPS'));
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 8000,
-      maximumAge: 30000
-    });
-  });
-}
-
 // ============================================================
-// ROUTE OVERVIEW MAP
+// DELIVERY ACTIONS
 // ============================================================
-function initRouteMap() {
-  if (routeMap) {
-    routeMap.invalidateSize();
-    return;
-  }
+function markDelivered() {
+  state.stops[state.currentStopIndex].delivered = true;
+  state.stops[state.currentStopIndex].deliveredAt = Date.now();
+  state.deliveredCount++;
+  state.currentStopIndex++;
+  saveProgress();
 
-  routeMap = L.map('route-map', { zoomControl: false });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(routeMap);
-
-  displayRouteOnMap(routeMap);
-}
-
-function displayRouteOnMap(map) {
-  if (!state.routeData) return;
-
-  if (state.routeData.geometry) {
-    var coords = state.routeData.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-    L.polyline(coords, { color: '#1a73e8', weight: 4, opacity: 0.8 }).addTo(map);
-  }
-
-  var bounds = L.latLngBounds();
-  state.optimizedStops.forEach(function(stop, i) {
-    var latlng = [stop.lat, stop.lng];
-    bounds.extend(latlng);
-
-    var isStart = stop.isStart;
-    var marker = L.marker(latlng, {
-      icon: L.divIcon({
-        className: '',
-        html: '<div class="custom-marker ' + (isStart ? 'start' : '') + '">' + (isStart ? 'S' : i) + '</div>',
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      })
-    }).addTo(map);
-
-    if (!isStart) {
-      marker.bindPopup('<strong>' + escapeHtml(stop.name) + '</strong><br>' + escapeHtml(stop.address));
-    }
-  });
-
-  map.fitBounds(bounds, { padding: [30, 30] });
-}
-
-function renderRouteOverview() {
-  var totalMiles = (state.routeData.totalDistance / 1609.34).toFixed(1);
-  var totalMins = Math.round(state.routeData.totalDuration / 60);
-  document.getElementById('route-stats').textContent = totalMiles + ' mi | ' + totalMins + ' min';
-
-  var list = document.getElementById('route-stops-list');
-  var stops = state.optimizedStops;
-
-  list.innerHTML = stops.map(function(stop, i) {
-    if (stop.isStart) {
-      return '<div class="route-stop-card">' +
-        '<div class="route-stop-marker"><div class="marker-dot" style="background:#5f6368">S</div><div class="marker-line"></div></div>' +
-        '<div class="route-stop-info"><div class="name">Starting Point</div><div class="addr">Your current location</div></div></div>';
-    }
-
-    var legInfo = state.routeData.directions && state.routeData.directions[i - 1]
-      ? formatDuration(state.routeData.directions[i - 1].duration) + ' | ' +
-        formatDistance(state.routeData.directions[i - 1].distance)
-      : '';
-
-    return '<div class="route-stop-card">' +
-      '<div class="route-stop-marker"><div class="marker-dot">' + i + '</div><div class="marker-line"></div></div>' +
-      '<div class="route-stop-info"><div class="name">' + escapeHtml(stop.name) + '</div>' +
-      '<div class="addr">' + escapeHtml(stop.address) + '</div>' +
-      (legInfo ? '<div class="leg-info">' + legInfo + '</div>' : '') +
-      '</div></div>';
-  }).join('');
-}
-
-// ============================================================
-// NAVIGATION
-// ============================================================
-function startNavigation() {
-  showScreen('nav');
-  startGPSTracking();
-  navigateToCurrentStop();
-}
-
-function initNavMap() {
-  if (navMap) {
-    navMap.invalidateSize();
-    return;
-  }
-
-  navMap = L.map('nav-map', { zoomControl: false });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OSM'
-  }).addTo(navMap);
-}
-
-async function navigateToCurrentStop() {
-  var stop = state.optimizedStops[state.currentStopIndex];
-  if (!stop) {
+  if (state.currentStopIndex >= state.stops.length) {
     tripComplete();
-    return;
-  }
-
-  document.getElementById('nav-stop-number').textContent = state.currentStopIndex;
-  document.getElementById('nav-company').textContent = stop.name;
-  document.getElementById('nav-address').textContent = stop.address;
-
-  var fromStop = state.userLocation || state.optimizedStops[state.currentStopIndex - 1] || state.optimizedStops[0];
-
-  try {
-    var coords = fromStop.lng + ',' + fromStop.lat + ';' + stop.lng + ',' + stop.lat;
-    var url = 'https://router.project-osrm.org/route/v1/driving/' + coords +
-      '?overview=full&geometries=geojson&steps=true';
-
-    var res = await fetch(url);
-    var result = await res.json();
-
-    if (result.code === 'Ok') {
-      var route = result.routes[0];
-      var routeData = {
-        geometry: route.geometry,
-        distance: route.distance,
-        duration: route.duration,
-        steps: route.legs[0].steps.map(function(step) {
-          return {
-            instruction: formatInstruction(step),
-            distance: step.distance,
-            duration: step.duration,
-            name: step.name || '',
-            maneuver: step.maneuver,
-            geometry: step.geometry
-          };
-        })
-      };
-      displayNavRoute(routeData, stop);
-      displayNavDirections(routeData);
-    }
-  } catch (err) {
-    console.error('Nav route error:', err);
-  }
-}
-
-function displayNavRoute(routeData, targetStop) {
-  if (!navMap) return;
-
-  if (navRouteLayer) navMap.removeLayer(navRouteLayer);
-  navMap.eachLayer(function(layer) {
-    if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-      navMap.removeLayer(layer);
-    }
-  });
-
-  if (routeData.geometry) {
-    var coords = routeData.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-    navRouteLayer = L.polyline(coords, { color: '#1a73e8', weight: 5, opacity: 0.9 }).addTo(navMap);
-  }
-
-  L.marker([targetStop.lat, targetStop.lng], {
-    icon: L.divIcon({
-      className: '',
-      html: '<div class="custom-marker current">' + state.currentStopIndex + '</div>',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
-    })
-  }).addTo(navMap).bindPopup('<strong>' + escapeHtml(targetStop.name) + '</strong>');
-
-  if (state.userLocation) {
-    userMarker = L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
-      radius: 8, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 2
-    }).addTo(navMap);
-  }
-
-  var bounds = L.latLngBounds([[targetStop.lat, targetStop.lng]]);
-  if (state.userLocation) bounds.extend([state.userLocation.lat, state.userLocation.lng]);
-  navMap.fitBounds(bounds, { padding: [60, 60] });
-
-  var mins = Math.round(routeData.duration / 60);
-  document.getElementById('nav-eta').textContent = mins < 1 ? '<1' : mins;
-}
-
-function displayNavDirections(routeData) {
-  if (!routeData.steps) return;
-
-  var firstStep = routeData.steps[0];
-  if (firstStep) {
-    document.getElementById('direction-text').textContent = firstStep.instruction;
-    document.getElementById('direction-distance').textContent = formatDistance(firstStep.distance);
-    updateDirectionIcon(firstStep.maneuver);
-  }
-
-  var stepsContainer = document.getElementById('nav-steps');
-  stepsContainer.innerHTML = routeData.steps
-    .filter(function(s) { return s.instruction !== 'Arrive at destination' || routeData.steps.length <= 2; })
-    .slice(0, 8)
-    .map(function(step) {
-      return '<div class="nav-step"><span class="step-text">' + step.instruction +
-        '</span><span class="step-dist">' + formatDistance(step.distance) + '</span></div>';
-    }).join('');
-}
-
-function updateDirectionIcon(maneuver) {
-  var iconEl = document.getElementById('direction-icon');
-  var modifier = maneuver ? maneuver.modifier || '' : '';
-
-  var svg = '';
-  if (modifier.includes('left')) {
-    svg = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="15 4 7 4 7 16"/><polyline points="11 8 7 4 3 8"/></svg>';
-  } else if (modifier.includes('right')) {
-    svg = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="9 4 17 4 17 16"/><polyline points="13 8 17 4 21 8"/></svg>';
   } else {
-    svg = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg>';
+    showDeliveryScreen();
   }
-  iconEl.innerHTML = svg;
+}
+
+function skipStop() {
+  state.stops[state.currentStopIndex].skipped = true;
+  state.skippedCount++;
+  state.currentStopIndex++;
+  saveProgress();
+
+  if (state.currentStopIndex >= state.stops.length) {
+    tripComplete();
+  } else {
+    showDeliveryScreen();
+  }
+}
+
+function openInMaps() {
+  var stop = state.stops[state.currentStopIndex];
+  if (!stop) return;
+  var url = 'https://www.google.com/maps/dir/?api=1&destination=' +
+    encodeURIComponent(stop.lat + ',' + stop.lng) +
+    '&travelmode=driving';
+  window.open(url, '_blank');
+}
+
+// ============================================================
+// PAUSE / RESUME
+// ============================================================
+function pauseTrip() {
+  stopGPSTracking();
+  saveProgress();
+
+  var total = state.stops.length;
+  var remaining = total - state.currentStopIndex;
+
+  document.getElementById('paused-done').textContent = state.deliveredCount;
+  document.getElementById('paused-total').textContent = total;
+
+  var nextStop = state.stops[state.currentStopIndex];
+  document.getElementById('paused-next-name').textContent = nextStop ? nextStop.name : 'None';
+  document.getElementById('paused-remaining').textContent = remaining + ' stops remaining';
+
+  showScreen('paused');
+}
+
+function resumeTrip() {
+  showDeliveryScreen();
+}
+
+function endTrip() {
+  if (confirm('End trip? Progress is saved - you can resume later from the home screen.')) {
+    stopGPSTracking();
+    saveProgress();
+    showScreen('upload');
+  }
+}
+
+// ============================================================
+// TRIP COMPLETE
+// ============================================================
+function tripComplete() {
+  stopGPSTracking();
+  document.getElementById('complete-delivered').textContent = state.deliveredCount;
+  document.getElementById('complete-skipped').textContent = state.skippedCount;
+  document.getElementById('complete-route-name').textContent = state.routeName;
+  clearProgress();
+  showScreen('complete');
+}
+
+function newTrip() {
+  state = {
+    stops: [], currentStopIndex: 0, deliveredCount: 0, skippedCount: 0,
+    userLocation: null, watchId: null, routeName: '', routeGeometry: null, currentLegData: null
+  };
+  navMap = null;
+  navRouteLayer = null;
+  userMarker = null;
+  stopMarker = null;
+  document.getElementById('nav-map').innerHTML = '';
+  showScreen('upload');
 }
 
 // ============================================================
@@ -550,13 +376,26 @@ function startGPSTracking() {
   if (state.watchId) navigator.geolocation.clearWatch(state.watchId);
 
   if (navigator.geolocation) {
+    // Get initial position
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        updateUserMarker();
+        // Re-fetch directions with real location
+        var stop = state.stops[state.currentStopIndex];
+        if (stop) fetchDirections(state.userLocation, stop);
+      },
+      function() {},
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+
     state.watchId = navigator.geolocation.watchPosition(
       function(pos) {
         state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         updateUserMarker();
         checkProximity();
       },
-      function(err) { console.log('GPS error:', err.message); },
+      function(err) { console.log('GPS:', err.message); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
     );
   }
@@ -575,13 +414,13 @@ function updateUserMarker() {
     userMarker.setLatLng([state.userLocation.lat, state.userLocation.lng]);
   } else {
     userMarker = L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
-      radius: 8, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 2
+      radius: 8, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 3
     }).addTo(navMap);
   }
 }
 
 function checkProximity() {
-  var stop = state.optimizedStops[state.currentStopIndex];
+  var stop = state.stops[state.currentStopIndex];
   if (!stop || !state.userLocation) return;
 
   var dist = getDistanceMeters(
@@ -589,7 +428,13 @@ function checkProximity() {
     stop.lat, stop.lng
   );
 
-  if (dist < 100) showArrivedScreen();
+  // Show "You're here!" when within 150 meters
+  var arrivedBanner = document.getElementById('arrived-banner');
+  if (dist < 150) {
+    arrivedBanner.classList.remove('hidden');
+  } else {
+    arrivedBanner.classList.add('hidden');
+  }
 }
 
 function getDistanceMeters(lat1, lng1, lat2, lng2) {
@@ -603,156 +448,89 @@ function getDistanceMeters(lat1, lng1, lat2, lng2) {
 }
 
 // ============================================================
-// DELIVERY ACTIONS
+// NAV MAP
 // ============================================================
-function showArrivedScreen() {
-  var stop = state.optimizedStops[state.currentStopIndex];
-  var totalStops = state.optimizedStops.length - 1;
-
-  document.getElementById('arrived-company').textContent = stop.name;
-  document.getElementById('arrived-address').textContent = stop.address;
-  document.getElementById('arrived-stop-num').textContent = state.currentStopIndex;
-  document.getElementById('arrived-total').textContent = totalStops;
-
-  showScreen('arrived');
-}
-
-function markDelivered() {
-  state.optimizedStops[state.currentStopIndex].delivered = true;
-  state.deliveredCount++;
-  state.currentStopIndex++;
-  saveProgress();
-  goToNextStop();
-}
-
-function skipStop() {
-  state.optimizedStops[state.currentStopIndex].skipped = true;
-  state.skippedCount++;
-  state.currentStopIndex++;
-  saveProgress();
-  goToNextStop();
-}
-
-function goToNextStop() {
-  if (state.currentStopIndex >= state.optimizedStops.length) {
-    tripComplete();
+function initNavMap() {
+  if (navMap) {
+    navMap.invalidateSize();
     return;
   }
-  showScreen('nav');
-  navigateToCurrentStop();
+
+  navMap = L.map('nav-map', { zoomControl: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OSM'
+  }).addTo(navMap);
+
+  // Now that map is ready, navigate
+  var stop = state.stops[state.currentStopIndex];
+  if (stop) navigateToStop(stop);
 }
 
 // ============================================================
-// PAUSE / RESUME
+// PROGRESS PERSISTENCE (localStorage + Firebase)
 // ============================================================
-function pauseTrip() {
-  state.isPaused = true;
-  stopGPSTracking();
-
-  var totalStops = state.optimizedStops.length - 1;
-  document.getElementById('paused-done').textContent = state.deliveredCount;
-  document.getElementById('paused-total').textContent = totalStops;
-
-  var nextStop = state.optimizedStops[state.currentStopIndex];
-  document.getElementById('paused-next-name').textContent = nextStop ? nextStop.name : 'None';
-
-  saveProgress();
-  showScreen('paused');
+function getProgressKey(name) {
+  return 'rr_progress_' + (name || state.routeName);
 }
 
-function resumeTrip() {
-  state.isPaused = false;
-  showScreen('nav');
-  startGPSTracking();
-  navigateToCurrentStop();
-}
-
-function endTrip() {
-  if (confirm('End trip? Your progress will be saved.')) {
-    tripComplete();
-  }
-}
-
-// ============================================================
-// TRIP COMPLETE
-// ============================================================
-function tripComplete() {
-  stopGPSTracking();
-  document.getElementById('complete-delivered').textContent = state.deliveredCount;
-  document.getElementById('complete-skipped').textContent = state.skippedCount;
-  clearProgress();
-  showScreen('complete');
-}
-
-function newTrip() {
-  state = {
-    stops: [], geocodedStops: [], optimizedStops: [], routeData: null,
-    currentStopIndex: 0, deliveredCount: 0, skippedCount: 0,
-    userLocation: null, isPaused: false, watchId: null, routeName: ''
-  };
-  routeMap = null;
-  navMap = null;
-  navRouteLayer = null;
-  userMarker = null;
-  document.getElementById('route-map').innerHTML = '';
-  document.getElementById('nav-map').innerHTML = '';
-  showScreen('upload');
-}
-
-// ============================================================
-// LOCAL STORAGE - Save/Restore Trip Progress
-// ============================================================
 function saveProgress() {
   var data = {
-    optimizedStops: state.optimizedStops,
-    routeData: state.routeData,
+    stops: state.stops,
     currentStopIndex: state.currentStopIndex,
     deliveredCount: state.deliveredCount,
     skippedCount: state.skippedCount,
-    userLocation: state.userLocation,
     routeName: state.routeName,
     savedAt: Date.now()
   };
-  localStorage.setItem('routerunner_progress', JSON.stringify(data));
+
+  // Save to localStorage
+  try {
+    localStorage.setItem(getProgressKey(), JSON.stringify(data));
+  } catch (e) { /* storage full */ }
+
+  // Also save to Firebase for cross-device access
+  try {
+    db.collection('progress').doc(state.routeName).set(data);
+  } catch (e) { console.error('Firebase progress save error:', e); }
+}
+
+function getSavedProgress(routeName) {
+  // Check localStorage first (faster)
+  try {
+    var saved = localStorage.getItem(getProgressKey(routeName));
+    if (saved) {
+      var data = JSON.parse(saved);
+      // No expiry - multi-day support
+      if (data.currentStopIndex < data.stops.length) return data;
+    }
+  } catch (e) { /* ignore */ }
+  return null;
 }
 
 function clearProgress() {
-  localStorage.removeItem('routerunner_progress');
-}
-
-function checkSavedProgress() {
-  var saved = localStorage.getItem('routerunner_progress');
-  if (!saved) return;
+  try {
+    localStorage.removeItem(getProgressKey());
+  } catch (e) { /* ignore */ }
 
   try {
-    var data = JSON.parse(saved);
-    if (Date.now() - data.savedAt > 24 * 60 * 60 * 1000) {
-      clearProgress();
-      return;
-    }
+    db.collection('progress').doc(state.routeName).delete();
+  } catch (e) { /* ignore */ }
+}
 
-    if (data.optimizedStops && data.currentStopIndex < data.optimizedStops.length) {
-      if (confirm('You have a saved trip with ' + (data.optimizedStops.length - 1) + ' stops. Resume where you left off?')) {
-        state.optimizedStops = data.optimizedStops;
-        state.routeData = data.routeData;
-        state.currentStopIndex = data.currentStopIndex;
-        state.deliveredCount = data.deliveredCount;
-        state.skippedCount = data.skippedCount;
-        state.userLocation = data.userLocation;
-        state.routeName = data.routeName || '';
-
-        document.getElementById('paused-done').textContent = state.deliveredCount;
-        document.getElementById('paused-total').textContent = state.optimizedStops.length - 1;
-        var nextStop = state.optimizedStops[state.currentStopIndex];
-        document.getElementById('paused-next-name').textContent = nextStop ? nextStop.name : 'None';
-        showScreen('paused');
-      } else {
-        clearProgress();
+// Check Firebase for progress (called on init, async)
+function checkFirebaseProgress() {
+  db.collection('progress').get().then(function(snapshot) {
+    snapshot.docs.forEach(function(doc) {
+      var data = doc.data();
+      var key = getProgressKey(doc.id);
+      // Sync to localStorage if not already there
+      if (!localStorage.getItem(key) && data.currentStopIndex < data.stops.length) {
+        localStorage.setItem(key, JSON.stringify(data));
       }
-    }
-  } catch (e) {
-    clearProgress();
-  }
+    });
+    // Re-render routes to show progress badges
+    loadRoutesFromFirebase();
+  }).catch(function() { /* ignore */ });
 }
 
 // ============================================================
@@ -762,14 +540,6 @@ function formatDistance(meters) {
   var miles = meters / 1609.34;
   if (miles < 0.1) return Math.round(meters * 3.28084) + ' ft';
   return miles.toFixed(1) + ' mi';
-}
-
-function formatDuration(seconds) {
-  var mins = Math.round(seconds / 60);
-  if (mins < 60) return mins + ' min';
-  var hrs = Math.floor(mins / 60);
-  var rem = mins % 60;
-  return hrs + 'h ' + rem + 'm';
 }
 
 function escapeHtml(str) {
@@ -787,5 +557,5 @@ function escapeAttr(str) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
   loadRoutesFromFirebase();
-  checkSavedProgress();
+  checkFirebaseProgress();
 });
