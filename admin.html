@@ -415,6 +415,9 @@
           }
         }
 
+        // Debug: log first 5 stops to see what data we got
+        console.log('First 5 stops:', JSON.stringify(stops.slice(0, 5), null, 2));
+
         if (stops.length === 0) {
           hideLoading();
           showStatus('No valid stops found. Need columns for company name and address.', 'error');
@@ -482,7 +485,10 @@
             } catch (err) { /* business not found either */ }
           }
 
-          if (!found) errors.push(stops[i].name);
+          if (!found) {
+            console.warn('GEOCODE FAIL:', stops[i].name, '| address:', stops[i].address, '| geocodeAddr:', stops[i].geocodeAddr, '| attempts:', JSON.stringify(attempts));
+            errors.push(stops[i].name);
+          }
         }
 
         saveGeoCache();
@@ -505,7 +511,7 @@
           const removed = [];
           geocodedStops = geocodedStops.filter(function(s) {
             const d = distance(s, center);
-            if (d > maxMiles) { removed.push(s.name); return false; }
+            if (d > maxMiles) { removed.push(s.name); console.warn('OUTLIER:', s.name, d.toFixed(1) + 'mi from center', 'lat:', s.lat, 'lng:', s.lng, 'addr:', s.address); return false; }
             return true;
           });
           for (var r = 0; r < removed.length; r++) {
