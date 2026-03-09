@@ -71,6 +71,50 @@
     .status.info { background: #e8f0fe; color: #1a73e8; }
     .hidden { display: none !important; }
 
+    .estimate-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+    .estimate-card h3 {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: #5f6368;
+      border-bottom: 1px solid #e8eaed;
+    }
+    .estimate-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: #e8eaed;
+    }
+    .estimate-item {
+      background: white;
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .estimate-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #202124;
+    }
+    .estimate-value.price { color: #1e8e3e; }
+    .estimate-label {
+      font-size: 12px;
+      color: #5f6368;
+      margin-top: 2px;
+    }
+    .estimate-breakdown {
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #5f6368;
+      border-top: 1px solid #e8eaed;
+      line-height: 1.6;
+    }
+    .estimate-breakdown strong { color: #202124; }
+
     .stops-preview {
       background: white;
       border-radius: 12px;
@@ -176,6 +220,21 @@
       margin-bottom: 16px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .progress-bar-container {
+      width: 200px;
+      height: 6px;
+      background: #e8eaed;
+      border-radius: 3px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: #1a73e8;
+      border-radius: 3px;
+      transition: width 0.3s;
+      width: 0%;
+    }
   </style>
 </head>
 <body>
@@ -197,6 +256,8 @@
       <input type="text" id="route-name" class="route-name-input" placeholder="e.g. Vestavia, Monday Downtown" maxlength="50">
     </div>
 
+    <div id="estimate-card" class="estimate-card" style="display:none"></div>
+
     <div id="stops-preview" class="stops-preview" style="display:none"></div>
 
     <button id="btn-save" class="btn" style="display:none" onclick="saveToFirebase()">Save Route</button>
@@ -207,6 +268,9 @@
   <div id="loading" class="loading-overlay hidden">
     <div class="spinner"></div>
     <p id="loading-msg">Loading...</p>
+    <div class="progress-bar-container" id="progress-bar">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
   </div>
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
@@ -216,6 +280,18 @@
   <script>
     // State
     let geocodedStops = [];
+    let routeEstimate = null;
+
+    // Geocode cache - persists across uploads
+    const geocodeCache = {};
+    try {
+      const cached = JSON.parse(localStorage.getItem('rr_geocache') || '{}');
+      Object.assign(geocodeCache, cached);
+    } catch(e) {}
+
+    function saveGeoCache() {
+      try { localStorage.setItem('rr_geocache', JSON.stringify(geocodeCache)); } catch(e) {}
+    }
 
     // Upload handling
     const uploadBox = document.getElementById('upload-box');
@@ -241,6 +317,7 @@
       }
 
       showLoading('Reading file...');
+      updateProgress(0);
 
       try {
         const data = await file.arrayBuffer();
@@ -260,26 +337,13 @@
           const keys = Object.keys(rows[0]);
           for (const key of keys) {
             const k = key.toLowerCase().trim();
-            if (!colMap.name && (k.includes('company') || k.includes('business') || k.includes('customer') || k === 'name' || k.includes('client'))) {
-              colMap.name = key;
-            }
-            if (!colMap.address && (k.includes('address') || k.includes('location') || k.includes('destination'))) {
-              colMap.address = key;
-            }
-            if (!colMap.street && (k.includes('street') || k === 'st' || k.includes('addr line') || k.includes('address 1') || k.includes('addr1'))) {
-              colMap.street = key;
-            }
-            if (!colMap.city && (k.includes('city') || k.includes('town') || k.includes('municipality') || k.includes('locale'))) {
-              colMap.city = key;
-            }
-            if (!colMap.state && (k.includes('state') || k.includes('province') || (k === 'st' && !colMap.street))) {
-              colMap.state = key;
-            }
-            if (!colMap.zip && (k.includes('zip') || k.includes('postal') || k.includes('post code'))) {
-              colMap.zip = key;
-            }
+            if (!colMap.name && (k.includes('company') || k.includes('business') || k.includes('customer') || k === 'name' || k.includes('client'))) colMap.name = key;
+            if (!colMap.address && (k.includes('address') || k.includes('location') || k.includes('destination'))) colMap.address = key;
+            if (!colMap.street && (k.includes('street') || k === 'st' || k.includes('addr line') || k.includes('address 1') || k.includes('addr1'))) colMap.street = key;
+            if (!colMap.city && (k.includes('city') || k.includes('town') || k.includes('municipality') || k.includes('locale'))) colMap.city = key;
+            if (!colMap.state && (k.includes('state') || k.includes('province') || (k === 'st' && !colMap.street))) colMap.state = key;
+            if (!colMap.zip && (k.includes('zip') || k.includes('postal') || k.includes('post code'))) colMap.zip = key;
           }
-          // If name col not found, check for generic "name" in any column header
           if (!colMap.name) {
             for (const key of keys) {
               if (key.toLowerCase().trim().includes('name')) { colMap.name = key; break; }
@@ -298,10 +362,7 @@
           let st = colMap.state ? String(row[colMap.state] || '').trim() : '';
           let zip = colMap.zip ? String(row[colMap.zip] || '').trim() : '';
 
-          // Use street if address not found
           if (!address && street) address = street;
-
-          // Fallback: no columns matched, use positional
           if (!name && !address && keys.length >= 2) {
             name = String(row[keys[0]]).trim();
             address = String(row[keys[1]]).trim();
@@ -309,29 +370,18 @@
           if (!name && address) name = address;
           if (name && !address) address = name;
 
-          // Build full address from parts
           let fullAddress = address;
-          if (city && !fullAddress.toLowerCase().includes(city.toLowerCase())) {
-            fullAddress += ', ' + city;
-          }
+          if (city && !fullAddress.toLowerCase().includes(city.toLowerCase())) fullAddress += ', ' + city;
           if (st) {
             const stLower = st.toLowerCase();
             const addrLower = fullAddress.toLowerCase();
-            // Only append if state isn't already present
-            if (!addrLower.includes(stLower) && !(stLower === 'al' && addrLower.includes(', al'))) {
-              fullAddress += ', ' + st;
-            }
+            if (!addrLower.includes(stLower) && !(stLower === 'al' && addrLower.includes(', al'))) fullAddress += ', ' + st;
           }
-          if (zip && !fullAddress.includes(zip)) {
-            fullAddress += ' ' + zip;
-          }
+          if (zip && !fullAddress.includes(zip)) fullAddress += ' ' + zip;
 
-          // Ensure Alabama is referenced
           if (name && fullAddress) {
             const addrLower = fullAddress.toLowerCase();
-            if (!addrLower.includes('alabama') && !addrLower.includes(', al') && !addrLower.includes(' al ')) {
-              fullAddress += ', Alabama';
-            }
+            if (!addrLower.includes('alabama') && !addrLower.includes(', al') && !addrLower.includes(' al ')) fullAddress += ', Alabama';
             stops.push({ name, address: fullAddress });
           }
         }
@@ -344,42 +394,52 @@
 
         showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
 
-        // Geocode all stops with multiple fallback strategies
+        // Geocode with cache — cached addresses are instant
         geocodedStops = [];
         const errors = [];
-        for (let i = 0; i < stops.length; i++) {
-          document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
-          let found = false;
+        let needsDelay = false;
 
-          // Build multiple address variants to try
+        for (let i = 0; i < stops.length; i++) {
+          updateProgress((i / stops.length) * 100);
+          document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
+
+          const cacheKey = stops[i].address.toLowerCase().trim();
+
+          // Check cache first — instant, no delay needed
+          if (geocodeCache[cacheKey]) {
+            geocodedStops.push({ ...stops[i], ...geocodeCache[cacheKey] });
+            continue;
+          }
+
+          // Need to hit API — respect rate limit
+          let found = false;
           const addr = stops[i].address;
           const attempts = [addr];
-
-          // Try without "Alabama" at end (use just zip or state abbr)
           const withoutAlabama = addr.replace(/,?\s*Alabama\s*$/i, '').trim();
           if (withoutAlabama !== addr) {
             attempts.push(withoutAlabama);
             attempts.push(withoutAlabama + ', AL');
           }
-
-          // Try just the street number + street + zip
           const zipMatch = addr.match(/\b(\d{5})\b/);
           const streetParts = addr.split(',')[0].trim();
-          if (zipMatch && streetParts) {
-            attempts.push(streetParts + ', ' + zipMatch[1]);
-          }
+          if (zipMatch && streetParts) attempts.push(streetParts + ', ' + zipMatch[1]);
 
           for (const attempt of attempts) {
             if (found) break;
             try {
-              if (i > 0 || attempts.indexOf(attempt) > 0) await sleep(1100);
+              if (needsDelay) await sleep(1000);
+              needsDelay = true;
               const coords = await geocodeAddress(attempt);
+              geocodeCache[cacheKey] = coords;
               geocodedStops.push({ ...stops[i], ...coords });
               found = true;
-            } catch (err) { /* try next variant */ }
+            } catch (err) { /* try next */ }
           }
           if (!found) errors.push(stops[i].name);
         }
+
+        saveGeoCache();
+        updateProgress(100);
 
         if (geocodedStops.length === 0) {
           hideLoading();
@@ -387,24 +447,27 @@
           return;
         }
 
-        // Optimize route order using nearest-neighbor to minimize backtracking
-        document.getElementById('loading-msg').textContent = 'Optimizing route for fastest delivery...';
+        // Optimize route
+        document.getElementById('loading-msg').textContent = 'Optimizing route...';
         geocodedStops = optimizeRoute(geocodedStops);
+
+        // Calculate trip estimate with OSRM
+        document.getElementById('loading-msg').textContent = 'Calculating trip estimate...';
+        routeEstimate = await calculateTripEstimate(geocodedStops);
 
         hideLoading();
 
         if (errors.length > 0) {
-          showStatus(geocodedStops.length + ' stops optimized for fastest route. Could not find: ' + errors.join(', '), 'error');
+          showStatus(geocodedStops.length + ' stops optimized. Could not find: ' + errors.join(', '), 'error');
         } else {
-          showStatus('All ' + geocodedStops.length + ' stops found and optimized for fastest route!', 'success');
+          showStatus('All ' + geocodedStops.length + ' stops found and optimized!', 'success');
         }
 
-        // Show preview and save button
+        showEstimate();
         showStopsPreview();
         document.getElementById('name-section').style.display = 'block';
         document.getElementById('btn-save').style.display = 'block';
 
-        // Auto-fill route name from filename
         const baseName = file.name.replace(/\.(csv|xlsx|xls)$/i, '');
         document.getElementById('route-name').value = baseName;
 
@@ -413,6 +476,97 @@
         showStatus('Failed to read file.', 'error');
         console.error(err);
       }
+    }
+
+    // ============================================================
+    // TRIP COST ESTIMATE
+    // ============================================================
+    async function calculateTripEstimate(stops) {
+      // Use OSRM to get real driving distance/time for the full route
+      const coords = stops.map(s => s.lng + ',' + s.lat).join(';');
+
+      // OSRM has a limit of ~100 coords per request, batch if needed
+      let totalDistance = 0; // meters
+      let totalDuration = 0; // seconds
+      const batchSize = 90;
+
+      for (let i = 0; i < stops.length - 1; i += batchSize) {
+        const batch = stops.slice(i, Math.min(i + batchSize + 1, stops.length));
+        if (batch.length < 2) break;
+        const batchCoords = batch.map(s => s.lng + ',' + s.lat).join(';');
+        try {
+          const res = await fetch('https://router.project-osrm.org/route/v1/driving/' + batchCoords + '?overview=false');
+          const result = await res.json();
+          if (result.code === 'Ok') {
+            totalDistance += result.routes[0].distance;
+            totalDuration += result.routes[0].duration;
+          }
+        } catch (e) {
+          console.error('OSRM estimate error:', e);
+        }
+      }
+
+      // Add ~2 min per stop for parking/walking/delivering
+      const deliveryTimePerStop = 2 * 60; // 2 min in seconds
+      const totalDeliveryTime = stops.length * deliveryTimePerStop;
+      const totalTime = totalDuration + totalDeliveryTime;
+
+      const totalMiles = totalDistance / 1609.34;
+      const totalHours = totalTime / 3600;
+
+      // Pricing: $20/hr base + gas cost + 25% cushion
+      const gasPerMile = 0.18; // ~$3.50/gal at ~20mpg (delivery driving, city)
+      const hourlyRate = 20;
+      const cushionPct = 0.25;
+
+      const gasCost = totalMiles * gasPerMile;
+      const laborCost = totalHours * hourlyRate;
+      const subtotal = gasCost + laborCost;
+      const cushion = subtotal * cushionPct;
+      const suggestedPrice = subtotal + cushion;
+      const perStop = suggestedPrice / stops.length;
+
+      return {
+        totalMiles: totalMiles,
+        drivingMinutes: Math.round(totalDuration / 60),
+        deliveryMinutes: Math.round(totalDeliveryTime / 60),
+        totalHours: totalHours,
+        gasCost: gasCost,
+        laborCost: laborCost,
+        cushion: cushion,
+        suggestedPrice: suggestedPrice,
+        perStop: perStop,
+        stopCount: stops.length
+      };
+    }
+
+    function showEstimate() {
+      if (!routeEstimate) return;
+      const e = routeEstimate;
+      const el = document.getElementById('estimate-card');
+      el.style.display = 'block';
+      el.innerHTML =
+        '<h3>Trip Estimate</h3>' +
+        '<div class="estimate-grid">' +
+          '<div class="estimate-item"><div class="estimate-value price">$' + e.suggestedPrice.toFixed(0) + '</div><div class="estimate-label">Suggested Charge</div></div>' +
+          '<div class="estimate-item"><div class="estimate-value">' + formatHours(e.totalHours) + '</div><div class="estimate-label">Est. Total Time</div></div>' +
+          '<div class="estimate-item"><div class="estimate-value">' + e.totalMiles.toFixed(0) + ' mi</div><div class="estimate-label">Total Driving</div></div>' +
+          '<div class="estimate-item"><div class="estimate-value">$' + e.perStop.toFixed(2) + '</div><div class="estimate-label">Per Stop</div></div>' +
+        '</div>' +
+        '<div class="estimate-breakdown">' +
+          '<strong>Breakdown:</strong><br>' +
+          'Driver pay (' + formatHours(e.totalHours) + ' x $20/hr): <strong>$' + e.laborCost.toFixed(2) + '</strong><br>' +
+          'Gas (' + e.totalMiles.toFixed(0) + ' mi x $0.18/mi): <strong>$' + e.gasCost.toFixed(2) + '</strong><br>' +
+          '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong><br>' +
+          'Driving: ' + e.drivingMinutes + ' min + Delivery: ~' + e.deliveryMinutes + ' min (' + e.stopCount + ' stops x 2 min)' +
+        '</div>';
+    }
+
+    function formatHours(h) {
+      var hrs = Math.floor(h);
+      var mins = Math.round((h - hrs) * 60);
+      if (hrs === 0) return mins + ' min';
+      return hrs + 'h ' + mins + 'm';
     }
 
     async function geocodeAddress(address) {
@@ -428,60 +582,49 @@
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-    // Nearest-neighbor TSP: build fastest route with no backtracking
+    function updateProgress(pct) {
+      document.getElementById('progress-fill').style.width = Math.min(pct, 100) + '%';
+    }
+
+    // Nearest-neighbor TSP
     function optimizeRoute(stops) {
       if (stops.length <= 2) return stops;
-
       const used = new Set();
       const ordered = [];
-
-      // Start from the northernmost stop (top of the route area)
       let currentIdx = 0;
       let maxLat = -Infinity;
       for (let i = 0; i < stops.length; i++) {
-        if (stops[i].lat > maxLat) {
-          maxLat = stops[i].lat;
-          currentIdx = i;
-        }
+        if (stops[i].lat > maxLat) { maxLat = stops[i].lat; currentIdx = i; }
       }
-
       used.add(currentIdx);
       ordered.push(stops[currentIdx]);
-
       while (ordered.length < stops.length) {
-        let nearest = -1;
-        let nearestDist = Infinity;
+        let nearest = -1, nearestDist = Infinity;
         for (let i = 0; i < stops.length; i++) {
           if (used.has(i)) continue;
           const d = distance(stops[currentIdx], stops[i]);
-          if (d < nearestDist) {
-            nearestDist = d;
-            nearest = i;
-          }
+          if (d < nearestDist) { nearestDist = d; nearest = i; }
         }
         used.add(nearest);
         ordered.push(stops[nearest]);
         currentIdx = nearest;
       }
-
       return ordered;
     }
 
-    // Haversine distance in miles
     function distance(a, b) {
       const R = 3959;
       const dLat = (b.lat - a.lat) * Math.PI / 180;
       const dLng = (b.lng - a.lng) * Math.PI / 180;
-      const sin1 = Math.sin(dLat / 2);
-      const sin2 = Math.sin(dLng / 2);
-      const x = sin1 * sin1 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * sin2 * sin2;
+      const s1 = Math.sin(dLat / 2), s2 = Math.sin(dLng / 2);
+      const x = s1 * s1 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * s2 * s2;
       return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
     }
 
     function showStopsPreview() {
       const el = document.getElementById('stops-preview');
       el.style.display = 'block';
-      el.innerHTML = '<h3>' + geocodedStops.length + ' Stops</h3>' +
+      el.innerHTML = '<h3>' + geocodedStops.length + ' Stops (Optimized Order)</h3>' +
         geocodedStops.map((s, i) =>
           '<div class="stop-item">' +
             '<div class="stop-num">' + (i + 1) + '</div>' +
@@ -507,7 +650,8 @@
         await db.collection('routes').doc(name).set({
           stops: geocodedStops,
           savedAt: Date.now(),
-          stopCount: geocodedStops.length
+          stopCount: geocodedStops.length,
+          estimate: routeEstimate
         });
 
         btn.textContent = 'Saved!';
@@ -523,36 +667,31 @@
       } catch (err) {
         btn.disabled = false;
         btn.textContent = 'Save Route';
-        showStatus('Failed to save. Check Firebase config. Error: ' + err.message, 'error');
+        showStatus('Failed to save. Error: ' + err.message, 'error');
         console.error(err);
       }
     }
 
-    // Load and display existing routes from Firebase
     function loadSavedRoutes() {
       db.collection('routes').onSnapshot(function(snapshot) {
         const el = document.getElementById('saved-routes');
         const docs = snapshot.docs;
-
-        if (docs.length === 0) {
-          el.style.display = 'none';
-          return;
-        }
+        if (docs.length === 0) { el.style.display = 'none'; return; }
 
         el.style.display = 'block';
         el.innerHTML = '<h3>Saved Routes</h3>' +
           docs.map(function(doc) {
             const r = doc.data();
             const name = doc.id;
+            const est = r.estimate;
+            const estText = est ? ' &middot; ~' + formatHours(est.totalHours) + ' &middot; $' + est.suggestedPrice.toFixed(0) : '';
             return '<div class="saved-route">' +
               '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
-              '<div class="saved-route-meta">' + r.stopCount + ' stops</div></div>' +
+              '<div class="saved-route-meta">' + r.stopCount + ' stops' + estText + '</div></div>' +
               '<button class="btn-delete" onclick="deleteRoute(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">Delete</button>' +
             '</div>';
           }).join('');
-      }, function(err) {
-        console.error('Firestore error:', err);
-      });
+      }, function(err) { console.error('Firestore error:', err); });
     }
 
     async function deleteRoute(name) {
@@ -560,9 +699,7 @@
       try {
         await db.collection('routes').doc(name).delete();
         showStatus('Deleted "' + name + '".', 'info');
-      } catch (err) {
-        showStatus('Failed to delete.', 'error');
-      }
+      } catch (err) { showStatus('Failed to delete.', 'error'); }
     }
 
     function showStatus(msg, type) {

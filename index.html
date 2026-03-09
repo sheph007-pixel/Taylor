@@ -53,6 +53,8 @@
           <span id="delivery-remaining">0 stops remaining</span>
           <span class="delivery-dot">&middot;</span>
           <span id="delivery-delivered-count">0 delivered</span>
+          <span class="delivery-dot">&middot;</span>
+          <span id="delivery-elapsed" class="delivery-elapsed"></span>
         </div>
         <div class="delivery-of">of <span id="delivery-total">0</span></div>
       </div>
@@ -142,7 +144,12 @@
           <span class="stat-value" id="complete-skipped">0</span>
           <span class="stat-label">Skipped</span>
         </div>
+        <div class="stat">
+          <span class="stat-value" id="complete-time">--</span>
+          <span class="stat-label">Total Time</span>
+        </div>
       </div>
+      <div id="complete-financials" class="complete-financials" style="display:none"></div>
       <button class="btn-primary btn-huge" onclick="newTrip()">Back to Routes</button>
     </div>
   </div>
