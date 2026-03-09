@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v5</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v6</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 5; // bump to force cache clear
+    const CODE_VERSION = 6; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -509,19 +509,6 @@
           }
         }
 
-        // Remove stops that geocoded outside Alabama (lat ~30.2-35.0, lng ~-88.5 to -84.9)
-        const before = geocodedStops.length;
-        const removed = [];
-        geocodedStops = geocodedStops.filter(function(s) {
-          if (s.lat < 29.5 || s.lat > 35.5 || s.lng < -89.5 || s.lng > -84.0) {
-            removed.push(s.name);
-            console.warn('OUT OF STATE:', s.name, 'lat:', s.lat, 'lng:', s.lng);
-            return false;
-          }
-          return true;
-        });
-        for (var r = 0; r < removed.length; r++) errors.push(removed[r] + ' (out of state)');
-
         // Optimize route
         document.getElementById('loading-msg').textContent = 'Optimizing route...';
         geocodedStops = optimizeRoute(geocodedStops);
@@ -631,14 +618,27 @@
     }
 
     async function geocodeAddress(address) {
-      // Bias toward Alabama (full state viewbox)
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
-        encodeURIComponent(address) + '&limit=1&countrycodes=us' +
-        '&viewbox=-88.5,35.0,-84.9,30.2&bounded=0';
-      const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
+      // First try unbounded (better results for full addresses)
+      const baseUrl = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
+        encodeURIComponent(address) + '&limit=3&countrycodes=us' +
+        '&viewbox=-88.5,35.0,-84.9,30.2';
+      const res = await fetch(baseUrl + '&bounded=0', { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
-      if (results.length > 0) {
-        const r = results[0];
+      // Pick the first result that's actually in Alabama
+      for (const r of results) {
+        const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+        const ad = r.address || {};
+        const state = (ad.state || '').toLowerCase();
+        if (state.includes('alabama') || (lat >= 30.1 && lat <= 35.1 && lon >= -88.6 && lon <= -84.8)) {
+          const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
+          return { lat: lat, lng: lon, city: city };
+        }
+      }
+      // Fallback: bounded search strictly within Alabama
+      const res2 = await fetch(baseUrl + '&bounded=1', { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
+      const results2 = await res2.json();
+      if (results2.length > 0) {
+        const r = results2[0];
         const ad = r.address || {};
         const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
         return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), city: city };
@@ -646,12 +646,12 @@
       throw new Error('Not found: ' + address);
     }
 
-    // Search for a business by name in Alabama
+    // Search for a business by name — bounded to Alabama only
     async function geocodeBusinessName(businessName) {
       const query = businessName + ', Alabama';
       const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
         encodeURIComponent(query) + '&limit=1&countrycodes=us' +
-        '&viewbox=-88.5,35.0,-84.9,30.2&bounded=0';
+        '&viewbox=-88.5,35.0,-84.9,30.2&bounded=1';
       const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
       if (results.length > 0) {
