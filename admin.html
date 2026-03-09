@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v7</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v8</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 7; // bump to force cache clear
+    const CODE_VERSION = 8; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -382,33 +382,10 @@
           if (!name && address) name = address;
           if (name && !address) address = name;
 
-          // Build full display address: street, suite, city, state zip
-          let fullAddress = address;
-          if (suite) fullAddress += ' ' + suite;
-          if (city && !fullAddress.toLowerCase().includes(city.toLowerCase())) fullAddress += ', ' + city;
-          if (st) {
-            const stLower = st.toLowerCase();
-            const addrLower = fullAddress.toLowerCase();
-            if (!addrLower.includes(stLower) && !(stLower === 'al' && addrLower.includes(', al'))) fullAddress += ', ' + st;
-          }
-          if (zip && !fullAddress.includes(zip)) fullAddress += ' ' + zip;
-
-          // Build a clean geocode-only address (address + city + state + zip, no company name, no suite)
-          let geocodeAddr = '';
-          if (address && address !== name) geocodeAddr = address;
-          else if (street) geocodeAddr = street;
-          if (city && geocodeAddr && !geocodeAddr.toLowerCase().includes(city.toLowerCase())) geocodeAddr += ', ' + city;
-          if (st && geocodeAddr && !geocodeAddr.toLowerCase().includes(st.toLowerCase())) geocodeAddr += ', ' + st;
-          if (zip && geocodeAddr && !geocodeAddr.includes(zip)) geocodeAddr += ' ' + zip;
-          if (!geocodeAddr) geocodeAddr = fullAddress;
-          // Ensure Alabama context
-          const gLower = geocodeAddr.toLowerCase();
-          if (!gLower.includes('alabama') && !gLower.includes(', al') && !gLower.includes(' al ')) geocodeAddr += ', Alabama';
-
-          if (name && fullAddress) {
-            const addrLower = fullAddress.toLowerCase();
-            if (!addrLower.includes('alabama') && !addrLower.includes(', al') && !addrLower.includes(' al ')) fullAddress += ', Alabama';
-            stops.push({ name, address: fullAddress, geocodeAddr });
+          // Store raw parts for structured geocoding + display
+          if (name && (address || street)) {
+            const rawStreet = address || street;
+            stops.push({ name, rawStreet, suite, zip, state: st });
           }
         }
 
@@ -423,7 +400,7 @@
 
         showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
 
-        // Geocode with cache — cached addresses are instant
+        // Geocode with cache
         geocodedStops = [];
         const errors = [];
         let needsDelay = false;
@@ -432,59 +409,56 @@
           updateProgress((i / stops.length) * 100);
           document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
 
-          // Use the clean geocode address (no company name) for lookups
-          const geoAddr = stops[i].geocodeAddr || stops[i].address;
-          const cacheKey = geoAddr.toLowerCase().trim();
+          const s = stops[i];
+          const cacheKey = (s.rawStreet + '|' + (s.zip || '')).toLowerCase().trim();
 
-          // Check cache first — instant, no delay needed
+          // Check cache first
           if (geocodeCache[cacheKey]) {
-            geocodedStops.push({ ...stops[i], ...geocodeCache[cacheKey] });
+            const cached = geocodeCache[cacheKey];
+            // Build display address: street, suite, city, state zip
+            let addr = s.rawStreet;
+            if (s.suite) addr += ' ' + s.suite;
+            addr += ', ' + (cached.city || '') + ', Alabama ' + (s.zip || '');
+            addr = addr.replace(', , ', ', ');
+            geocodedStops.push({ name: s.name, address: addr, lat: cached.lat, lng: cached.lng });
             continue;
           }
 
-          // Need to hit API — respect rate limit
-          // Try geocode address first (clean, no company name), then full address as fallback
+          // Structured geocode: street + zip is the most reliable
           let found = false;
-          const attempts = [geoAddr];
-          if (geoAddr !== stops[i].address) attempts.push(stops[i].address);
-          // Try without Alabama suffix
-          const withoutAlabama = geoAddr.replace(/,?\s*Alabama\s*$/i, '').trim();
-          if (withoutAlabama !== geoAddr) {
-            attempts.push(withoutAlabama);
-            attempts.push(withoutAlabama + ', AL');
-          }
-          // Try just street + zip
-          const zipMatch = geoAddr.match(/\b(\d{5})\b/);
-          const streetParts = geoAddr.split(',')[0].trim();
-          if (zipMatch && streetParts) attempts.push(streetParts + ', ' + zipMatch[1]);
+          try {
+            if (needsDelay) await sleep(1000);
+            needsDelay = true;
+            const result = await geocodeStructured(s.rawStreet, s.zip || '35242');
+            geocodeCache[cacheKey] = result;
+            let addr = s.rawStreet;
+            if (s.suite) addr += ' ' + s.suite;
+            addr += ', ' + (result.city || '') + ', Alabama ' + (s.zip || '');
+            addr = addr.replace(', , ', ', ');
+            geocodedStops.push({ name: s.name, address: addr, lat: result.lat, lng: result.lng });
+            found = true;
+          } catch (err) { /* try fallback */ }
 
-          for (const attempt of attempts) {
-            if (found) break;
+          // Fallback: free-form search with full string
+          if (!found) {
             try {
               if (needsDelay) await sleep(1000);
               needsDelay = true;
-              const coords = await geocodeAddress(attempt);
-              geocodeCache[cacheKey] = coords;
-              geocodedStops.push({ ...stops[i], ...coords });
+              const query = s.rawStreet + ', Alabama ' + (s.zip || '');
+              const result = await geocodeAddress(query);
+              geocodeCache[cacheKey] = result;
+              let addr = s.rawStreet;
+              if (s.suite) addr += ' ' + s.suite;
+              addr += ', ' + (result.city || '') + ', Alabama ' + (s.zip || '');
+              addr = addr.replace(', , ', ', ');
+              geocodedStops.push({ name: s.name, address: addr, lat: result.lat, lng: result.lng });
               found = true;
-            } catch (err) { /* try next */ }
-          }
-
-          // Last resort: search by business name in Alabama
-          if (!found && stops[i].name) {
-            try {
-              if (needsDelay) await sleep(1000);
-              needsDelay = true;
-              const coords = await geocodeBusinessName(stops[i].name);
-              geocodeCache[cacheKey] = coords;
-              geocodedStops.push({ ...stops[i], ...coords });
-              found = true;
-            } catch (err) { /* business not found either */ }
+            } catch (err2) { /* try next */ }
           }
 
           if (!found) {
-            console.warn('GEOCODE FAIL:', stops[i].name, '| address:', stops[i].address, '| geocodeAddr:', stops[i].geocodeAddr, '| attempts:', JSON.stringify(attempts));
-            errors.push(stops[i].name);
+            console.warn('GEOCODE FAIL:', s.name, s.rawStreet, s.zip);
+            errors.push(s.name);
           }
         }
 
@@ -495,25 +469,6 @@
           hideLoading();
           showStatus('Could not find any addresses on the map.', 'error');
           return;
-        }
-
-        // Inject city from geocode response into display address if missing
-        for (const s of geocodedStops) {
-          console.log('CITY CHECK:', s.name, '| city:', s.city, '| address:', s.address);
-          if (s.city && s.address) {
-            const addrLower = s.address.toLowerCase();
-            const cityLower = s.city.toLowerCase();
-            // If city is not already in the address, insert before state/Alabama
-            if (!addrLower.includes(cityLower)) {
-              const updated = s.address.replace(/,\s*(Alabama|AL)\b/i, ', ' + s.city + ', $1');
-              if (updated !== s.address) {
-                s.address = updated;
-              } else {
-                // No comma before state — try appending city before state word
-                s.address = s.address.replace(/(Alabama|AL)\b/i, s.city + ', $1');
-              }
-            }
-          }
         }
 
         // Optimize route
@@ -624,40 +579,27 @@
       return hrs + 'h ' + mins + 'm';
     }
 
-    async function geocodeAddress(address) {
-      // First try unbounded (better results for full addresses)
-      const baseUrl = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
-        encodeURIComponent(address) + '&limit=3&countrycodes=us' +
-        '&viewbox=-88.5,35.0,-84.9,30.2';
-      const res = await fetch(baseUrl + '&bounded=0', { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
+    // Structured geocode — most reliable for street + zip
+    async function geocodeStructured(street, zip) {
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1' +
+        '&street=' + encodeURIComponent(street) +
+        '&postalcode=' + encodeURIComponent(zip) +
+        '&state=Alabama&country=US&limit=1';
+      const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
-      // Pick the first result that's actually in Alabama
-      for (const r of results) {
-        const lat = parseFloat(r.lat), lon = parseFloat(r.lon);
-        const ad = r.address || {};
-        const state = (ad.state || '').toLowerCase();
-        if (state.includes('alabama') || (lat >= 30.1 && lat <= 35.1 && lon >= -88.6 && lon <= -84.8)) {
-          const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
-          return { lat: lat, lng: lon, city: city };
-        }
-      }
-      // Fallback: bounded search strictly within Alabama
-      const res2 = await fetch(baseUrl + '&bounded=1', { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
-      const results2 = await res2.json();
-      if (results2.length > 0) {
-        const r = results2[0];
+      if (results.length > 0) {
+        const r = results[0];
         const ad = r.address || {};
         const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
         return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), city: city };
       }
-      throw new Error('Not found: ' + address);
+      throw new Error('Not found: ' + street + ' ' + zip);
     }
 
-    // Search for a business by name — bounded to Alabama only
-    async function geocodeBusinessName(businessName) {
-      const query = businessName + ', Alabama';
+    // Free-form geocode fallback — bounded to Alabama
+    async function geocodeAddress(address) {
       const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
-        encodeURIComponent(query) + '&limit=1&countrycodes=us' +
+        encodeURIComponent(address) + '&limit=1&countrycodes=us' +
         '&viewbox=-88.5,35.0,-84.9,30.2&bounded=1';
       const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
@@ -667,7 +609,7 @@
         const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
         return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), city: city };
       }
-      throw new Error('Not found: ' + businessName);
+      throw new Error('Not found: ' + address);
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
