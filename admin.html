@@ -253,26 +253,55 @@
           return;
         }
 
-        // Parse stops
+        // Parse stops — detect column mapping first
         const stops = [];
-        for (const row of rows) {
-          const keys = Object.keys(row);
-          let name = '', address = '', city = '', st = '', zip = '';
-
+        const colMap = { name: null, address: null, city: null, state: null, zip: null, street: null };
+        if (rows.length > 0) {
+          const keys = Object.keys(rows[0]);
           for (const key of keys) {
             const k = key.toLowerCase().trim();
-            if (k.includes('company') || k.includes('name') || k.includes('business') || k.includes('customer')) {
-              name = String(row[key]).trim();
+            if (!colMap.name && (k.includes('company') || k.includes('business') || k.includes('customer') || k === 'name' || k.includes('client'))) {
+              colMap.name = key;
             }
-            if (k.includes('address') || k.includes('location') || k.includes('destination')) {
-              address = String(row[key]).trim();
+            if (!colMap.address && (k.includes('address') || k.includes('location') || k.includes('destination'))) {
+              colMap.address = key;
             }
-            if (k.includes('city')) city = String(row[key]).trim();
-            if (k.includes('state') || k === 'st') st = String(row[key]).trim();
-            if (k.includes('zip') || k.includes('postal')) zip = String(row[key]).trim();
+            if (!colMap.street && (k.includes('street') || k === 'st' || k.includes('addr line') || k.includes('address 1') || k.includes('addr1'))) {
+              colMap.street = key;
+            }
+            if (!colMap.city && (k.includes('city') || k.includes('town') || k.includes('municipality') || k.includes('locale'))) {
+              colMap.city = key;
+            }
+            if (!colMap.state && (k.includes('state') || k.includes('province') || (k === 'st' && !colMap.street))) {
+              colMap.state = key;
+            }
+            if (!colMap.zip && (k.includes('zip') || k.includes('postal') || k.includes('post code'))) {
+              colMap.zip = key;
+            }
           }
+          // If name col not found, check for generic "name" in any column header
+          if (!colMap.name) {
+            for (const key of keys) {
+              if (key.toLowerCase().trim().includes('name')) { colMap.name = key; break; }
+            }
+          }
+          console.log('Column mapping:', JSON.stringify(colMap));
+          console.log('CSV columns:', keys.join(', '));
+        }
 
-          // Fallback: if no named columns, use first two columns
+        for (const row of rows) {
+          const keys = Object.keys(row);
+          let name = colMap.name ? String(row[colMap.name] || '').trim() : '';
+          let street = colMap.street ? String(row[colMap.street] || '').trim() : '';
+          let address = colMap.address ? String(row[colMap.address] || '').trim() : '';
+          let city = colMap.city ? String(row[colMap.city] || '').trim() : '';
+          let st = colMap.state ? String(row[colMap.state] || '').trim() : '';
+          let zip = colMap.zip ? String(row[colMap.zip] || '').trim() : '';
+
+          // Use street if address not found
+          if (!address && street) address = street;
+
+          // Fallback: no columns matched, use positional
           if (!name && !address && keys.length >= 2) {
             name = String(row[keys[0]]).trim();
             address = String(row[keys[1]]).trim();
@@ -280,23 +309,30 @@
           if (!name && address) name = address;
           if (name && !address) address = name;
 
-          // Always append city, state, zip if available and not already in address
-          if (city && !address.toLowerCase().includes(city.toLowerCase())) {
-            address += ', ' + city;
+          // Build full address from parts
+          let fullAddress = address;
+          if (city && !fullAddress.toLowerCase().includes(city.toLowerCase())) {
+            fullAddress += ', ' + city;
           }
-          if (st && !address.toLowerCase().includes(st.toLowerCase())) {
-            address += ', ' + st;
+          if (st) {
+            const stLower = st.toLowerCase();
+            const addrLower = fullAddress.toLowerCase();
+            // Only append if state isn't already present
+            if (!addrLower.includes(stLower) && !(stLower === 'al' && addrLower.includes(', al'))) {
+              fullAddress += ', ' + st;
+            }
           }
-          if (zip && !address.includes(zip)) {
-            address += ' ' + zip;
+          if (zip && !fullAddress.includes(zip)) {
+            fullAddress += ' ' + zip;
           }
 
-          if (name && address) {
-            const addrLower = address.toLowerCase();
+          // Ensure Alabama is referenced
+          if (name && fullAddress) {
+            const addrLower = fullAddress.toLowerCase();
             if (!addrLower.includes('alabama') && !addrLower.includes(', al') && !addrLower.includes(' al ')) {
-              address += ', Alabama';
+              fullAddress += ', Alabama';
             }
-            stops.push({ name, address });
+            stops.push({ name, address: fullAddress });
           }
         }
 
@@ -308,27 +344,39 @@
 
         showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
 
-        // Geocode all stops with retry
+        // Geocode all stops with multiple fallback strategies
         geocodedStops = [];
         const errors = [];
         for (let i = 0; i < stops.length; i++) {
           document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
           let found = false;
-          // Try full address first, then simplified
-          const attempts = [stops[i].address];
-          // Create a simplified version: just street + city + state
-          const parts = stops[i].address.split(',').map(s => s.trim());
-          if (parts.length >= 2) {
-            attempts.push(parts.slice(0, 3).join(', '));
+
+          // Build multiple address variants to try
+          const addr = stops[i].address;
+          const attempts = [addr];
+
+          // Try without "Alabama" at end (use just zip or state abbr)
+          const withoutAlabama = addr.replace(/,?\s*Alabama\s*$/i, '').trim();
+          if (withoutAlabama !== addr) {
+            attempts.push(withoutAlabama);
+            attempts.push(withoutAlabama + ', AL');
           }
-          for (const addr of attempts) {
+
+          // Try just the street number + street + zip
+          const zipMatch = addr.match(/\b(\d{5})\b/);
+          const streetParts = addr.split(',')[0].trim();
+          if (zipMatch && streetParts) {
+            attempts.push(streetParts + ', ' + zipMatch[1]);
+          }
+
+          for (const attempt of attempts) {
             if (found) break;
             try {
-              if (i > 0 || attempts.indexOf(addr) > 0) await sleep(1100);
-              const coords = await geocodeAddress(addr);
+              if (i > 0 || attempts.indexOf(attempt) > 0) await sleep(1100);
+              const coords = await geocodeAddress(attempt);
               geocodedStops.push({ ...stops[i], ...coords });
               found = true;
-            } catch (err) { /* try next attempt */ }
+            } catch (err) { /* try next variant */ }
           }
           if (!found) errors.push(stops[i].name);
         }
