@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v3</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v4</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 3; // bump to force cache clear
+    const CODE_VERSION = 4; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -382,9 +382,6 @@
           if (!name && address) name = address;
           if (name && !address) address = name;
 
-          // Default city to Birmingham if no city column (most AL deliveries are Birmingham area)
-          if (!city && !colMap.city) city = 'Birmingham';
-
           // Build full display address: street, suite, city, state zip
           let fullAddress = address;
           if (suite) fullAddress += ' ' + suite;
@@ -400,14 +397,10 @@
           let geocodeAddr = '';
           if (address && address !== name) geocodeAddr = address;
           else if (street) geocodeAddr = street;
-          // Always add city for geocoding
-          if (geocodeAddr) {
-            if (!geocodeAddr.toLowerCase().includes(city.toLowerCase())) geocodeAddr += ', ' + city;
-          } else {
-            geocodeAddr = city;
-          }
-          if (st && !geocodeAddr.toLowerCase().includes(st.toLowerCase())) geocodeAddr += ', ' + st;
-          if (zip && !geocodeAddr.includes(zip)) geocodeAddr += ' ' + zip;
+          if (city && geocodeAddr && !geocodeAddr.toLowerCase().includes(city.toLowerCase())) geocodeAddr += ', ' + city;
+          if (st && geocodeAddr && !geocodeAddr.toLowerCase().includes(st.toLowerCase())) geocodeAddr += ', ' + st;
+          if (zip && geocodeAddr && !geocodeAddr.includes(zip)) geocodeAddr += ' ' + zip;
+          if (!geocodeAddr) geocodeAddr = fullAddress;
           // Ensure Alabama context
           const gLower = geocodeAddr.toLowerCase();
           if (!gLower.includes('alabama') && !gLower.includes(', al') && !gLower.includes(' al ')) geocodeAddr += ', Alabama';
@@ -502,25 +495,6 @@
           hideLoading();
           showStatus('Could not find any addresses on the map.', 'error');
           return;
-        }
-
-        // Remove outliers: drop stops geocoded far from the cluster center
-        // (bad geocode results that land in wrong state/city)
-        if (geocodedStops.length > 2) {
-          const avgLat = geocodedStops.reduce((s, p) => s + p.lat, 0) / geocodedStops.length;
-          const avgLng = geocodedStops.reduce((s, p) => s + p.lng, 0) / geocodedStops.length;
-          const center = { lat: avgLat, lng: avgLng };
-          const maxMiles = 50; // no stop should be >50 mi from center for local delivery
-          const before = geocodedStops.length;
-          const removed = [];
-          geocodedStops = geocodedStops.filter(function(s) {
-            const d = distance(s, center);
-            if (d > maxMiles) { removed.push(s.name); console.warn('OUTLIER:', s.name, d.toFixed(1) + 'mi from center', 'lat:', s.lat, 'lng:', s.lng, 'addr:', s.address); return false; }
-            return true;
-          });
-          for (var r = 0; r < removed.length; r++) {
-            errors.push(removed[r] + ' (bad location)');
-          }
         }
 
         // Optimize route
