@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v6</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v7</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 6; // bump to force cache clear
+    const CODE_VERSION = 7; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -499,12 +499,19 @@
 
         // Inject city from geocode response into display address if missing
         for (const s of geocodedStops) {
+          console.log('CITY CHECK:', s.name, '| city:', s.city, '| address:', s.address);
           if (s.city && s.address) {
             const addrLower = s.address.toLowerCase();
             const cityLower = s.city.toLowerCase();
             // If city is not already in the address, insert before state/Alabama
             if (!addrLower.includes(cityLower)) {
-              s.address = s.address.replace(/,\s*(Alabama|AL)\b/i, ', ' + s.city + ', $1');
+              const updated = s.address.replace(/,\s*(Alabama|AL)\b/i, ', ' + s.city + ', $1');
+              if (updated !== s.address) {
+                s.address = updated;
+              } else {
+                // No comma before state — try appending city before state word
+                s.address = s.address.replace(/(Alabama|AL)\b/i, s.city + ', $1');
+              }
             }
           }
         }
