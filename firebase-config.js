@@ -1,23 +1,10 @@
-// ============================================================
-// Firebase Configuration
-// ============================================================
-// HOW TO SET UP (one time, 2 minutes):
-// 1. Go to https://console.firebase.google.com
-// 2. Click "Create a project" (any name, e.g. "route-runner")
-// 3. Skip Google Analytics when asked
-// 4. Click "Build" > "Firestore Database" > Create Database > Start in TEST MODE
-// 5. Go to Project Settings (gear icon top-left) > scroll down to "Your apps"
-// 6. Click the web icon (</>) to add a web app
-// 7. Copy the firebaseConfig values below
-// ============================================================
-
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDeGGcZ4SSZLeiprGEBxnU1g_68VCAf1nA",
+  authDomain: "taylor-1a7f8.firebaseapp.com",
+  projectId: "taylor-1a7f8",
+  storageBucket: "taylor-1a7f8.firebasestorage.app",
+  messagingSenderId: "615405904737",
+  appId: "1:615405904737:web:542ab8fa2ceebb292f9b20"
 };
 
 firebase.initializeApp(firebaseConfig);
