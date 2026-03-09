@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v8</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v9</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 8; // bump to force cache clear
+    const CODE_VERSION = 9; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -385,7 +385,7 @@
           // Store raw parts for structured geocoding + display
           if (name && (address || street)) {
             const rawStreet = address || street;
-            stops.push({ name, rawStreet, suite, zip, state: st });
+            stops.push({ name, rawStreet, suite, city, zip, state: st });
           }
         }
 
@@ -412,15 +412,20 @@
           const s = stops[i];
           const cacheKey = (s.rawStreet + '|' + (s.zip || '')).toLowerCase().trim();
 
+          // Build display address using CSV city (geocode city only if CSV has none)
+          function buildAddr(geoCity) {
+            let addr = s.rawStreet;
+            if (s.suite) addr += ' ' + s.suite;
+            const displayCity = s.city || geoCity || '';
+            if (displayCity) addr += ', ' + displayCity;
+            addr += ', ' + (s.state || 'Alabama') + ' ' + (s.zip || '');
+            return addr;
+          }
+
           // Check cache first
           if (geocodeCache[cacheKey]) {
             const cached = geocodeCache[cacheKey];
-            // Build display address: street, suite, city, state zip
-            let addr = s.rawStreet;
-            if (s.suite) addr += ' ' + s.suite;
-            addr += ', ' + (cached.city || '') + ', Alabama ' + (s.zip || '');
-            addr = addr.replace(', , ', ', ');
-            geocodedStops.push({ name: s.name, address: addr, lat: cached.lat, lng: cached.lng });
+            geocodedStops.push({ name: s.name, address: buildAddr(cached.city), lat: cached.lat, lng: cached.lng });
             continue;
           }
 
@@ -431,11 +436,7 @@
             needsDelay = true;
             const result = await geocodeStructured(s.rawStreet, s.zip || '35242');
             geocodeCache[cacheKey] = result;
-            let addr = s.rawStreet;
-            if (s.suite) addr += ' ' + s.suite;
-            addr += ', ' + (result.city || '') + ', Alabama ' + (s.zip || '');
-            addr = addr.replace(', , ', ', ');
-            geocodedStops.push({ name: s.name, address: addr, lat: result.lat, lng: result.lng });
+            geocodedStops.push({ name: s.name, address: buildAddr(result.city), lat: result.lat, lng: result.lng });
             found = true;
           } catch (err) { /* try fallback */ }
 
@@ -447,11 +448,7 @@
               const query = s.rawStreet + ', Alabama ' + (s.zip || '');
               const result = await geocodeAddress(query);
               geocodeCache[cacheKey] = result;
-              let addr = s.rawStreet;
-              if (s.suite) addr += ' ' + s.suite;
-              addr += ', ' + (result.city || '') + ', Alabama ' + (s.zip || '');
-              addr = addr.replace(', , ', ', ');
-              geocodedStops.push({ name: s.name, address: addr, lat: result.lat, lng: result.lng });
+              geocodedStops.push({ name: s.name, address: buildAddr(result.city), lat: result.lat, lng: result.lng });
               found = true;
             } catch (err2) { /* try next */ }
           }
