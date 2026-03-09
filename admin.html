@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v4</span></p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v5</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,7 +279,7 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
-    const CODE_VERSION = 4; // bump to force cache clear
+    const CODE_VERSION = 5; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
@@ -470,7 +470,7 @@
             } catch (err) { /* try next */ }
           }
 
-          // Last resort: search by business name in Birmingham area
+          // Last resort: search by business name in Alabama
           if (!found && stops[i].name) {
             try {
               if (needsDelay) await sleep(1000);
@@ -496,6 +496,31 @@
           showStatus('Could not find any addresses on the map.', 'error');
           return;
         }
+
+        // Inject city from geocode response into display address if missing
+        for (const s of geocodedStops) {
+          if (s.city && s.address) {
+            const addrLower = s.address.toLowerCase();
+            const cityLower = s.city.toLowerCase();
+            // If city is not already in the address, insert before state/Alabama
+            if (!addrLower.includes(cityLower)) {
+              s.address = s.address.replace(/,\s*(Alabama|AL)\b/i, ', ' + s.city + ', $1');
+            }
+          }
+        }
+
+        // Remove stops that geocoded outside Alabama (lat ~30.2-35.0, lng ~-88.5 to -84.9)
+        const before = geocodedStops.length;
+        const removed = [];
+        geocodedStops = geocodedStops.filter(function(s) {
+          if (s.lat < 29.5 || s.lat > 35.5 || s.lng < -89.5 || s.lng > -84.0) {
+            removed.push(s.name);
+            console.warn('OUT OF STATE:', s.name, 'lat:', s.lat, 'lng:', s.lng);
+            return false;
+          }
+          return true;
+        });
+        for (var r = 0; r < removed.length; r++) errors.push(removed[r] + ' (out of state)');
 
         // Optimize route
         document.getElementById('loading-msg').textContent = 'Optimizing route...';
@@ -606,28 +631,34 @@
     }
 
     async function geocodeAddress(address) {
-      // Bias toward Birmingham, AL area (viewbox + bounded)
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+      // Bias toward Alabama (full state viewbox)
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
         encodeURIComponent(address) + '&limit=1&countrycodes=us' +
-        '&viewbox=-87.1,33.7,-86.5,33.3&bounded=0';
+        '&viewbox=-88.5,35.0,-84.9,30.2&bounded=0';
       const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
       if (results.length > 0) {
-        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+        const r = results[0];
+        const ad = r.address || {};
+        const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
+        return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), city: city };
       }
       throw new Error('Not found: ' + address);
     }
 
-    // Search for a business by name in Birmingham area
+    // Search for a business by name in Alabama
     async function geocodeBusinessName(businessName) {
-      const query = businessName + ', Birmingham, Alabama';
-      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+      const query = businessName + ', Alabama';
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=' +
         encodeURIComponent(query) + '&limit=1&countrycodes=us' +
-        '&viewbox=-87.1,33.7,-86.5,33.3&bounded=1';
+        '&viewbox=-88.5,35.0,-84.9,30.2&bounded=0';
       const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
       if (results.length > 0) {
-        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+        const r = results[0];
+        const ad = r.address || {};
+        const city = ad.city || ad.town || ad.village || ad.hamlet || ad.county || '';
+        return { lat: parseFloat(r.lat), lng: parseFloat(r.lon), city: city };
       }
       throw new Error('Not found: ' + businessName);
     }
