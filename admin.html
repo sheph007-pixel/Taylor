@@ -447,6 +447,25 @@
           return;
         }
 
+        // Remove outliers: drop stops geocoded far from the cluster center
+        // (bad geocode results that land in wrong state/city)
+        if (geocodedStops.length > 2) {
+          const avgLat = geocodedStops.reduce((s, p) => s + p.lat, 0) / geocodedStops.length;
+          const avgLng = geocodedStops.reduce((s, p) => s + p.lng, 0) / geocodedStops.length;
+          const center = { lat: avgLat, lng: avgLng };
+          const maxMiles = 50; // no stop should be >50 mi from center for local delivery
+          const before = geocodedStops.length;
+          const removed = [];
+          geocodedStops = geocodedStops.filter(function(s) {
+            const d = distance(s, center);
+            if (d > maxMiles) { removed.push(s.name); return false; }
+            return true;
+          });
+          if (removed.length > 0) {
+            errors = errors.concat(removed.map(function(n) { return n + ' (bad location)'; }));
+          }
+        }
+
         // Optimize route
         document.getElementById('loading-msg').textContent = 'Optimizing route...';
         geocodedStops = optimizeRoute(geocodedStops);
@@ -541,7 +560,7 @@
         '<div class="estimate-breakdown">' +
           '<strong>How we got this:</strong><br>' +
           'Driving: ~' + formatHours(e.drivingHours) + ' (' + e.totalMiles.toFixed(0) + ' mi at 25 mph avg)<br>' +
-          'Deliveries: ~' + formatHours(e.deliveryHours) + ' (' + e.stopCount + ' stops x 3 min each)<br>' +
+          'Deliveries: ~' + formatHours(e.deliveryHours) + ' (' + e.stopCount + ' stops x 5 min each)<br>' +
           'Driver pay (' + formatHours(e.totalHours) + ' x $20/hr): <strong>$' + e.laborCost.toFixed(2) + '</strong><br>' +
           'Gas (' + e.totalMiles.toFixed(0) + ' mi x $0.18/mi): <strong>$' + e.gasCost.toFixed(2) + '</strong><br>' +
           '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong>' +
@@ -556,8 +575,10 @@
     }
 
     async function geocodeAddress(address) {
+      // Bias toward Birmingham, AL area (viewbox + bounded)
       const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
-        encodeURIComponent(address) + '&limit=1&countrycodes=us';
+        encodeURIComponent(address) + '&limit=1&countrycodes=us' +
+        '&viewbox=-87.1,33.7,-86.5,33.3&bounded=0';
       const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
       const results = await res.json();
       if (results.length > 0) {
