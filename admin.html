@@ -240,7 +240,7 @@
 <body>
   <div class="container">
     <h1>Route Runner Admin</h1>
-    <p class="subtitle">Upload delivery routes for your drivers</p>
+    <p class="subtitle">Upload delivery routes for your drivers <span style="color:#dadce0;font-size:11px">v2</span></p>
 
     <div class="upload-box" id="upload-box">
       <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
@@ -279,15 +279,25 @@
   <script src="firebase-config.js"></script>
   <script>
     // State
+    const CODE_VERSION = 2; // bump to force cache clear
     let geocodedStops = [];
     let routeEstimate = null;
 
-    // Geocode cache - persists across uploads
+    // Geocode cache - auto-clears when code version changes
     const geocodeCache = {};
     try {
-      const cached = JSON.parse(localStorage.getItem('rr_geocache') || '{}');
-      Object.assign(geocodeCache, cached);
-    } catch(e) {}
+      const savedVersion = parseInt(localStorage.getItem('rr_cache_version') || '0');
+      if (savedVersion < CODE_VERSION) {
+        localStorage.removeItem('rr_geocache');
+        localStorage.setItem('rr_cache_version', String(CODE_VERSION));
+        console.log('Cache cleared (code version ' + CODE_VERSION + ')');
+      } else {
+        const cached = JSON.parse(localStorage.getItem('rr_geocache') || '{}');
+        Object.assign(geocodeCache, cached);
+      }
+    } catch(e) {
+      localStorage.removeItem('rr_geocache');
+    }
 
     function saveGeoCache() {
       try { localStorage.setItem('rr_geocache', JSON.stringify(geocodeCache)); } catch(e) {}
@@ -459,6 +469,19 @@
               found = true;
             } catch (err) { /* try next */ }
           }
+
+          // Last resort: search by business name in Birmingham area
+          if (!found && stops[i].name) {
+            try {
+              if (needsDelay) await sleep(1000);
+              needsDelay = true;
+              const coords = await geocodeBusinessName(stops[i].name);
+              geocodeCache[cacheKey] = coords;
+              geocodedStops.push({ ...stops[i], ...coords });
+              found = true;
+            } catch (err) { /* business not found either */ }
+          }
+
           if (!found) errors.push(stops[i].name);
         }
 
@@ -609,6 +632,20 @@
         return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
       }
       throw new Error('Not found: ' + address);
+    }
+
+    // Search for a business by name in Birmingham area
+    async function geocodeBusinessName(businessName) {
+      const query = businessName + ', Birmingham, Alabama';
+      const url = 'https://nominatim.openstreetmap.org/search?format=json&q=' +
+        encodeURIComponent(query) + '&limit=1&countrycodes=us' +
+        '&viewbox=-87.1,33.7,-86.5,33.3&bounded=1';
+      const res = await fetch(url, { headers: { 'User-Agent': 'RouteRunnerApp/1.0' } });
+      const results = await res.json();
+      if (results.length > 0) {
+        return { lat: parseFloat(results[0].lat), lng: parseFloat(results[0].lon) };
+      }
+      throw new Error('Not found: ' + businessName);
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
