@@ -116,7 +116,7 @@ function renderSavedRoutes(routes) {
     }
 
     return '<div class="saved-route-card">' +
-      '<div class="saved-route-info" onclick="loadRoute(\'' + escapeAttr(name) + '\')">' +
+      '<div class="saved-route-info" data-route-index="' + keys.indexOf(name) + '">' +
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
         estHtml +
@@ -124,6 +124,14 @@ function renderSavedRoutes(routes) {
       '</div>' +
     '</div>';
   }).join('');
+
+  // Attach click handlers — use index to look up the exact key
+  list.querySelectorAll('.saved-route-info[data-route-index]').forEach(function(el) {
+    el.addEventListener('click', function() {
+      var idx = parseInt(el.getAttribute('data-route-index'), 10);
+      loadRoute(keys[idx]);
+    });
+  });
 }
 
 // ============================================================
