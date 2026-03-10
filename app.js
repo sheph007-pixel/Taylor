@@ -24,6 +24,7 @@ var navMap = null;
 var navRouteLayer = null;
 var userMarker = null;
 var stopMarker = null;
+var cachedRoutes = {};
 
 // ============================================================
 // VOICE GUIDANCE (Web Speech API — free, built-in)
@@ -75,11 +76,11 @@ function loadRoutesFromFirebase() {
   if (msgEl) msgEl.textContent = 'Loading routes...';
 
   db.collection('routes').onSnapshot(function(snapshot) {
-    var routes = {};
+    cachedRoutes = {};
     snapshot.docs.forEach(function(doc) {
-      routes[doc.id] = doc.data();
+      cachedRoutes[doc.id] = doc.data();
     });
-    renderSavedRoutes(routes);
+    renderSavedRoutes(cachedRoutes);
   }, function(err) {
     if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
     console.error('Firebase error:', err);
@@ -136,44 +137,37 @@ function renderSavedRoutes(routes) {
 
 // ============================================================
 // LOAD ROUTE → Show preview screen (NO optimization yet)
+// Uses cached data from onSnapshot — no extra Firestore call
 // ============================================================
 function loadRoute(name) {
   var progress = getSavedProgress(name);
   var isResume = progress && progress.currentStopIndex < progress.stops.length;
 
-  showLoading('Loading route...');
+  var route = cachedRoutes[name];
+  if (!route || !route.stops || route.stops.length === 0) {
+    alert('Route not found or has no stops.');
+    return;
+  }
 
-  db.collection('routes').doc(name).get().then(function(doc) {
-    if (!doc.exists) { hideLoading(); alert('Route not found.'); return; }
-    var route = doc.data();
-    if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
+  if (isResume) {
+    state.stops = progress.stops;
+    state.currentStopIndex = progress.currentStopIndex;
+    state.deliveredCount = progress.deliveredCount;
+    state.skippedCount = progress.skippedCount;
+    state.routeName = name;
+    state.estimate = progress.estimate || null;
+    state.tripStartTime = progress.tripStartTime || Date.now();
+  } else {
+    state.routeName = name;
+    state.stops = route.stops;
+    state.currentStopIndex = 0;
+    state.deliveredCount = 0;
+    state.skippedCount = 0;
+    state.estimate = route.estimate || null;
+    state.tripStartTime = null;
+  }
 
-    if (isResume) {
-      state.stops = progress.stops;
-      state.currentStopIndex = progress.currentStopIndex;
-      state.deliveredCount = progress.deliveredCount;
-      state.skippedCount = progress.skippedCount;
-      state.routeName = name;
-      state.estimate = progress.estimate || null;
-      state.tripStartTime = progress.tripStartTime || Date.now();
-    } else {
-      // Load raw stops — optimization happens on Start
-      state.routeName = name;
-      state.stops = route.stops;
-      state.currentStopIndex = 0;
-      state.deliveredCount = 0;
-      state.skippedCount = 0;
-      state.estimate = route.estimate || null;
-      state.tripStartTime = null;
-    }
-
-    hideLoading();
-    showStartScreen(isResume);
-  }).catch(function(err) {
-    hideLoading();
-    alert('Failed to load route.');
-    console.error(err);
-  });
+  showStartScreen(isResume);
 }
 
 // ============================================================
