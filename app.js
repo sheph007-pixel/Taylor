@@ -1,6 +1,7 @@
 // ============================================================
 // Route Runner - Driver App (Waze-style)
 // Full-screen map, one turn at a time, voice guidance
+// Reads routes from Firebase Firestore
 // ============================================================
 
 var state = {
@@ -98,7 +99,7 @@ function renderSavedRoutes(routes) {
 
   keys.sort(function(a, b) { return (routes[b].savedAt || 0) - (routes[a].savedAt || 0); });
 
-  list.innerHTML = keys.map(function(name) {
+  list.innerHTML = keys.map(function(name, idx) {
     var route = routes[name];
     var date = new Date(route.savedAt);
     var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -117,7 +118,7 @@ function renderSavedRoutes(routes) {
     }
 
     return '<div class="saved-route-card">' +
-      '<div class="saved-route-info" data-route-index="' + keys.indexOf(name) + '">' +
+      '<div class="saved-route-info" data-route-index="' + idx + '">' +
         '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
         '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
         estHtml +
@@ -126,7 +127,7 @@ function renderSavedRoutes(routes) {
     '</div>';
   }).join('');
 
-  // Attach click handlers — use index to look up the exact key
+  // Attach click handlers — use index to avoid string escaping issues
   list.querySelectorAll('.saved-route-info[data-route-index]').forEach(function(el) {
     el.addEventListener('click', function() {
       var idx = parseInt(el.getAttribute('data-route-index'), 10);
@@ -136,8 +137,8 @@ function renderSavedRoutes(routes) {
 }
 
 // ============================================================
-// LOAD ROUTE → Show preview screen (NO optimization yet)
-// Uses cached data from onSnapshot — no extra Firestore call
+// LOAD ROUTE → Show preview screen
+// Uses cached data from onSnapshot — no extra Firestore call needed
 // ============================================================
 function loadRoute(name) {
   var progress = getSavedProgress(name);
@@ -227,7 +228,7 @@ function showStartScreen(isResume) {
 }
 
 // ============================================================
-// START ROUTE — Optimize from current GPS, then begin
+// START ROUTE — Get GPS, optimize, then begin navigation
 // ============================================================
 function startRoute() {
   var btn = document.getElementById('start-go-btn');
@@ -297,19 +298,14 @@ function showDeliveryScreen() {
 
   var total = state.stops.length;
 
-  // Update bottom card
   document.getElementById('delivery-company').textContent = stop.name;
   document.getElementById('delivery-address').textContent = stop.address;
-
-  // Progress badge
   document.getElementById('nav-stop-num').textContent = state.currentStopIndex + 1;
   document.getElementById('nav-stop-total').textContent = total;
 
-  // Progress bar
   var pct = total > 0 ? ((state.currentStopIndex) / total * 100) : 0;
   document.getElementById('delivery-progress-fill').style.width = pct + '%';
 
-  // Reset turn bar
   document.getElementById('nav-turn-text').textContent = 'Calculating route...';
   document.getElementById('nav-turn-distance').textContent = '';
   document.getElementById('nav-turn-icon').innerHTML = getTurnIconSVG('straight');
@@ -321,24 +317,21 @@ function showDeliveryScreen() {
   startGPSTracking();
   navigateToStop(stop);
 
-  // Voice: announce the next stop
   speak('Stop ' + (state.currentStopIndex + 1) + ' of ' + total + '. ' + stop.name + '. ' + stop.address);
 }
 
 // ============================================================
-// BIG TURN-BY-TURN DISPLAY (one step at a time)
+// BIG TURN-BY-TURN DISPLAY
 // ============================================================
 function updateTurnDisplay() {
   var steps = state.currentSteps;
   if (!steps || steps.length === 0) return;
 
-  // Find the next meaningful step (skip depart if we have more steps)
   var nextStep = steps[0];
   if (steps.length > 1 && steps[0].maneuver.type === 'depart') {
     nextStep = steps[1];
   }
 
-  // If the last step is arrive, show "Arrive" when it's the only step left
   if (steps.length <= 2) {
     var lastStep = steps[steps.length - 1];
     if (lastStep.maneuver.type === 'arrive') {
@@ -354,11 +347,10 @@ function updateTurnDisplay() {
   document.getElementById('nav-turn-text').textContent = instruction;
   document.getElementById('nav-turn-distance').textContent = dist > 0 ? formatDistance(dist) : '';
 
-  // Voice: speak next turn if we haven't already
   var stepKey = instruction;
   if (stepKey !== state._lastSpokenInstruction) {
     state._lastSpokenInstruction = stepKey;
-    if (dist < 500) { // within ~0.3 miles
+    if (dist < 500) {
       speak(instruction);
     } else {
       speak('In ' + formatDistance(dist) + ', ' + instruction);
@@ -390,7 +382,6 @@ function getTurnIconSVG(direction) {
   if (direction === 'roundabout') {
     return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><circle cx="12" cy="12" r="4"/><path d="M12 16v5"/><polyline points="9 19 12 21 15 19"/></svg>';
   }
-  // straight
   return '<svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="white" stroke-width="2.5"><polyline points="12 19 12 5"/><polyline points="5 12 12 5 19 12"/></svg>';
 }
 
@@ -438,7 +429,6 @@ function fetchDirections(from, to) {
       document.getElementById('delivery-eta').textContent = mins < 1 ? '<1 min' : mins + ' min';
       document.getElementById('delivery-distance').textContent = formatDistance(route.distance);
 
-      // Store steps for turn-by-turn
       state.currentSteps = route.legs[0].steps;
       updateTurnDisplay();
 
@@ -625,7 +615,6 @@ function startGPSTracking() {
       state.userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
       updateUserMarker();
       checkProximity();
-      // Re-fetch directions periodically as driver moves
       refreshDirectionsThrottled();
     },
     function(err) { console.log('GPS:', err.message); },
@@ -636,7 +625,7 @@ function startGPSTracking() {
 var _lastDirectionsFetch = 0;
 function refreshDirectionsThrottled() {
   var now = Date.now();
-  if (now - _lastDirectionsFetch < 15000) return; // every 15s max
+  if (now - _lastDirectionsFetch < 15000) return;
   _lastDirectionsFetch = now;
   var stop = state.stops[state.currentStopIndex];
   if (stop && state.userLocation) {
@@ -666,7 +655,6 @@ function checkProximity() {
   var banner = document.getElementById('arrived-banner');
   if (dist < 150) {
     banner.classList.remove('hidden');
-    // Voice announce arrival once per stop
     if (state.lastSpokenArrival !== state.currentStopIndex) {
       state.lastSpokenArrival = state.currentStopIndex;
       speak("You've arrived at " + stop.name);
@@ -698,7 +686,7 @@ function initNavMap() {
 }
 
 // ============================================================
-// PROGRESS PERSISTENCE
+// PROGRESS PERSISTENCE (localStorage only)
 // ============================================================
 function getProgressKey(name) { return 'rr_progress_' + (name || state.routeName); }
 
@@ -714,7 +702,6 @@ function saveProgress() {
     savedAt: Date.now()
   };
   try { localStorage.setItem(getProgressKey(), JSON.stringify(data)); } catch (e) {}
-  try { db.collection('progress').doc(state.routeName).set(data); } catch (e) {}
 }
 
 function getSavedProgress(routeName) {
@@ -730,20 +717,6 @@ function getSavedProgress(routeName) {
 
 function clearProgress() {
   try { localStorage.removeItem(getProgressKey()); } catch (e) {}
-  try { db.collection('progress').doc(state.routeName).delete(); } catch (e) {}
-}
-
-function checkFirebaseProgress() {
-  db.collection('progress').get().then(function(snapshot) {
-    snapshot.docs.forEach(function(doc) {
-      var data = doc.data();
-      var key = getProgressKey(doc.id);
-      if (!localStorage.getItem(key) && data.currentStopIndex < data.stops.length) {
-        localStorage.setItem(key, JSON.stringify(data));
-      }
-    });
-    loadRoutesFromFirebase();
-  }).catch(function() {});
 }
 
 // ============================================================
@@ -768,14 +741,9 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
-function escapeAttr(str) {
-  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
-
 // ============================================================
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
   loadRoutesFromFirebase();
-  checkFirebaseProgress();
 });
