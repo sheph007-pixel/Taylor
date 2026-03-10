@@ -836,10 +836,12 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   padding: 32px 24px;
+  padding-top: 64px;
   text-align: center;
   position: relative;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .start-back-btn {
   position: absolute;
@@ -886,31 +888,78 @@ html, body {
   color: var(--blue);
   flex-shrink: 0;
 }
-.start-first-stop {
-  background: var(--blue-light);
-  border-radius: var(--radius);
-  padding: 16px 20px;
+/* Stop list on start screen */
+.start-stop-list-section {
   width: 100%;
-  max-width: 320px;
+  max-width: 360px;
   margin-bottom: 20px;
   text-align: left;
 }
-.start-first-label {
-  font-size: 12px;
+.start-stop-list-header {
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--gray-500);
-  margin-bottom: 4px;
-}
-.start-first-name {
-  font-size: 18px;
   font-weight: 700;
-  color: var(--gray-900);
+  margin-bottom: 8px;
+  padding-left: 4px;
 }
-.start-first-addr {
-  font-size: 14px;
+.start-stop-list {
+  max-height: 280px;
+  overflow-y: auto;
+  border-radius: var(--radius);
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+}
+.start-stop-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--gray-100);
+}
+.start-stop-item:last-child { border-bottom: none; }
+.start-stop-item.delivered { opacity: 0.45; }
+.start-stop-item.skipped { opacity: 0.45; }
+.start-stop-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.start-stop-info { flex: 1; min-width: 0; }
+.start-stop-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.start-stop-addr {
+  font-size: 13px;
   color: var(--gray-500);
-  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Spinner for start button */
+.start-btn-spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
 }
 .start-resume-info {
   margin-bottom: 16px;
@@ -935,6 +984,11 @@ html, body {
 .start-actions {
   width: 100%;
   max-width: 320px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 16px;
+  padding-bottom: 8px;
+  background: white;
 }
 .start-go-btn {
   width: 100%;

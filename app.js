@@ -127,54 +127,44 @@ function renderSavedRoutes(routes) {
 }
 
 // ============================================================
-// LOAD ROUTE → Show preview screen first
+// LOAD ROUTE → Show preview screen (NO optimization yet)
 // ============================================================
 function loadRoute(name) {
   var progress = getSavedProgress(name);
   var isResume = progress && progress.currentStopIndex < progress.stops.length;
 
-  showLoading('Getting your location...');
+  showLoading('Loading route...');
 
-  getDriverLocation(function(driverPos) {
-    showLoading('Loading route...');
+  db.collection('routes').doc(name).get().then(function(doc) {
+    if (!doc.exists) { hideLoading(); alert('Route not found.'); return; }
+    var route = doc.data();
+    if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
 
-    db.collection('routes').doc(name).get().then(function(doc) {
-      if (!doc.exists) { hideLoading(); alert('Route not found.'); return; }
-      var route = doc.data();
-      if (!route || !route.stops || route.stops.length === 0) { hideLoading(); alert('Route has no stops.'); return; }
+    if (isResume) {
+      state.stops = progress.stops;
+      state.currentStopIndex = progress.currentStopIndex;
+      state.deliveredCount = progress.deliveredCount;
+      state.skippedCount = progress.skippedCount;
+      state.routeName = name;
+      state.estimate = progress.estimate || null;
+      state.tripStartTime = progress.tripStartTime || Date.now();
+    } else {
+      // Load raw stops — optimization happens on Start
+      state.routeName = name;
+      state.stops = route.stops;
+      state.currentStopIndex = 0;
+      state.deliveredCount = 0;
+      state.skippedCount = 0;
+      state.estimate = route.estimate || null;
+      state.tripStartTime = null;
+    }
 
-      if (isResume) {
-        // Resuming — use saved progress
-        state.stops = progress.stops;
-        state.currentStopIndex = progress.currentStopIndex;
-        state.deliveredCount = progress.deliveredCount;
-        state.skippedCount = progress.skippedCount;
-        state.routeName = name;
-        state.estimate = progress.estimate || null;
-        state.tripStartTime = progress.tripStartTime || Date.now();
-      } else {
-        // Fresh start — optimize from GPS
-        var stops = route.stops;
-        if (driverPos && stops.length > 2) {
-          showLoading('Optimizing route from your location...');
-          stops = optimizeRouteFromGPS(stops, driverPos);
-        }
-        state.routeName = name;
-        state.stops = stops;
-        state.currentStopIndex = 0;
-        state.deliveredCount = 0;
-        state.skippedCount = 0;
-        state.estimate = route.estimate || null;
-        state.tripStartTime = Date.now();
-      }
-
-      hideLoading();
-      showStartScreen(isResume);
-    }).catch(function(err) {
-      hideLoading();
-      alert('Failed to load route.');
-      console.error(err);
-    });
+    hideLoading();
+    showStartScreen(isResume);
+  }).catch(function(err) {
+    hideLoading();
+    alert('Failed to load route.');
+    console.error(err);
   });
 }
 
@@ -184,7 +174,6 @@ function loadRoute(name) {
 function showStartScreen(isResume) {
   var total = state.stops.length;
   var remaining = total - state.currentStopIndex;
-  var nextStop = state.stops[state.currentStopIndex];
 
   document.getElementById('start-route-name').textContent = state.routeName;
   document.getElementById('start-stop-count').textContent = total + ' stop' + (total !== 1 ? 's' : '');
@@ -201,12 +190,22 @@ function showStartScreen(isResume) {
     document.getElementById('start-price-row').style.display = 'none';
   }
 
-  // First / next stop
-  if (nextStop) {
-    document.getElementById('start-first-label').textContent = isResume ? 'Next stop' : 'First stop';
-    document.getElementById('start-first-name').textContent = nextStop.name;
-    document.getElementById('start-first-addr').textContent = nextStop.address;
-  }
+  // Build stop list
+  var stopListEl = document.getElementById('start-stop-list');
+  var stopsToShow = isResume ? state.stops.slice(state.currentStopIndex) : state.stops;
+  stopListEl.innerHTML = stopsToShow.map(function(stop, i) {
+    var num = isResume ? state.currentStopIndex + i + 1 : i + 1;
+    var statusClass = '';
+    if (stop.delivered) statusClass = ' delivered';
+    else if (stop.skipped) statusClass = ' skipped';
+    return '<div class="start-stop-item' + statusClass + '">' +
+      '<div class="start-stop-num">' + num + '</div>' +
+      '<div class="start-stop-info">' +
+        '<div class="start-stop-name">' + escapeHtml(stop.name) + '</div>' +
+        '<div class="start-stop-addr">' + escapeHtml(stop.address) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 
   // Resume info
   var resumeInfo = document.getElementById('start-resume-info');
@@ -225,8 +224,26 @@ function showStartScreen(isResume) {
   showScreen('start');
 }
 
+// ============================================================
+// START ROUTE — Optimize from current GPS, then begin
+// ============================================================
 function startRoute() {
-  showDeliveryScreen();
+  var btn = document.getElementById('start-go-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="start-btn-spinner"></span> Optimizing...';
+
+  getDriverLocation(function(driverPos) {
+    // Only optimize fresh routes (not resumed)
+    if (state.tripStartTime === null && state.stops.length > 2) {
+      if (driverPos) {
+        state.stops = optimizeRouteFromGPS(state.stops, driverPos);
+      }
+    }
+    state.tripStartTime = state.tripStartTime || Date.now();
+
+    btn.disabled = false;
+    showDeliveryScreen();
+  });
 }
 
 function getDriverLocation(callback) {
