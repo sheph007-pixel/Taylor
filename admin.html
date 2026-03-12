@@ -701,11 +701,66 @@
         ).join('');
     }
 
+    // GitHub API config for saving routes.json directly
+    const GITHUB_OWNER = 'sheph007-pixel';
+    const GITHUB_REPO = 'Taylor';
+    const GITHUB_BRANCH = 'claude/mobile-route-planner-V2yCu';
+    const ROUTES_PATH = 'routes.json';
+    let githubToken = localStorage.getItem('rr_github_token') || '';
+
+    function ensureToken() {
+      if (githubToken) return true;
+      githubToken = prompt('Enter your GitHub Personal Access Token to save routes.\n\nCreate one at: github.com/settings/tokens\nNeeds "repo" permission.');
+      if (githubToken) {
+        localStorage.setItem('rr_github_token', githubToken);
+        return true;
+      }
+      return false;
+    }
+
+    async function getRoutesFile() {
+      const url = 'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + ROUTES_PATH + '?ref=' + GITHUB_BRANCH;
+      const headers = {};
+      if (githubToken) headers['Authorization'] = 'token ' + githubToken;
+      const res = await fetch(url, { headers });
+      if (!res.ok) return { content: {}, sha: null };
+      const data = await res.json();
+      const content = JSON.parse(atob(data.content));
+      return { content, sha: data.sha };
+    }
+
+    async function putRoutesFile(routes, sha, message) {
+      const url = 'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + ROUTES_PATH;
+      const body = {
+        message: message,
+        content: btoa(JSON.stringify(routes, null, 2)),
+        branch: GITHUB_BRANCH
+      };
+      if (sha) body.sha = sha;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + githubToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'GitHub API error');
+      }
+      return await res.json();
+    }
+
     async function saveRoute() {
       const name = document.getElementById('route-name').value.trim();
       if (!name) {
         showStatus('Please enter a route name.', 'error');
         document.getElementById('route-name').focus();
+        return;
+      }
+      if (!ensureToken()) {
+        showStatus('GitHub token required to save routes.', 'error');
         return;
       }
 
@@ -715,21 +770,24 @@
 
       try {
         const cleanStops = geocodedStops.map(s => ({ name: s.name, address: s.address, lat: s.lat, lng: s.lng }));
-        const res = await fetch('/api/save-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: name,
-            stops: cleanStops,
-            estimate: routeEstimate
-          })
-        });
-        const result = await res.json();
-        if (!res.ok) throw new Error(result.error || 'Save failed');
+
+        // Read current routes.json from GitHub
+        const { content: routes, sha } = await getRoutesFile();
+
+        // Add the new route
+        routes[name] = {
+          stops: cleanStops,
+          savedAt: Date.now(),
+          stopCount: cleanStops.length,
+          estimate: routeEstimate
+        };
+
+        // Write back to GitHub
+        await putRoutesFile(routes, sha, 'Add route: ' + name);
 
         btn.textContent = 'Saved!';
         btn.classList.add('success');
-        showStatus('Route "' + name + '" saved! Driver can now see it on their phone.', 'success');
+        showStatus('Route "' + name + '" saved! Driver can see it in ~1 minute after GitHub Pages redeploys.', 'success');
         loadSavedRoutes();
 
         setTimeout(() => {
@@ -746,7 +804,9 @@
     }
 
     function loadSavedRoutes() {
-      fetch('/api/routes').then(r => r.json()).then(function(routes) {
+      // Load routes.json — try GitHub API first, fall back to static file
+      const url = 'routes.json';
+      fetch(url).then(r => r.json()).then(function(routes) {
         const el = document.getElementById('saved-routes');
         const keys = Object.keys(routes);
         if (keys.length === 0) { el.style.display = 'none'; return; }
@@ -768,17 +828,14 @@
 
     async function deleteRoute(name) {
       if (!confirm('Delete "' + name + '"?')) return;
+      if (!ensureToken()) { showStatus('GitHub token required.', 'error'); return; }
       try {
-        const res = await fetch('/api/delete-route', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name })
-        });
-        if (res.ok) {
-          showStatus('Deleted "' + name + '".', 'info');
-          loadSavedRoutes();
-        } else { showStatus('Failed to delete.', 'error'); }
-      } catch (err) { showStatus('Failed to delete.', 'error'); }
+        const { content: routes, sha } = await getRoutesFile();
+        delete routes[name];
+        await putRoutesFile(routes, sha, 'Delete route: ' + name);
+        showStatus('Deleted "' + name + '".', 'info');
+        loadSavedRoutes();
+      } catch (err) { showStatus('Failed to delete: ' + err.message, 'error'); }
     }
 
     function showStatus(msg, type) {
