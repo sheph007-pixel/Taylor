@@ -70,18 +70,22 @@ function hideLoading() {
 }
 
 // ============================================================
-// LOAD ROUTES from server (GET /api/routes)
+// FIREBASE - Load routes for driver
 // ============================================================
-function loadRoutes() {
+function loadRoutesFromFirebase() {
   var msgEl = document.getElementById('no-routes-msg');
   if (msgEl) msgEl.textContent = 'Loading routes...';
 
-  try {
-    cachedRoutes = JSON.parse(localStorage.getItem('rr_saved_routes') || '{}');
-  } catch(e) {
+  db.collection('routes').onSnapshot(function(snapshot) {
     cachedRoutes = {};
-  }
-  renderSavedRoutes(cachedRoutes);
+    snapshot.docs.forEach(function(doc) {
+      cachedRoutes[doc.id] = doc.data();
+    });
+    renderSavedRoutes(cachedRoutes);
+  }, function(err) {
+    if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
+    console.error('Firebase error:', err);
+  });
 }
 
 function renderSavedRoutes(routes) {
@@ -578,7 +582,7 @@ function newTrip() {
   };
   navMap = null; navRouteLayer = null; userMarker = null; stopMarker = null;
   document.getElementById('nav-map').innerHTML = '';
-  loadRoutes();
+  loadRoutesFromFirebase();
   showScreen('upload');
 }
 
@@ -735,5 +739,5 @@ function escapeHtml(str) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-  loadRoutes();
+  loadRoutesFromFirebase();
 });

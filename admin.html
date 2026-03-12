@@ -274,6 +274,9 @@
   </div>
 
   <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
   <script>
     // State
     const CODE_VERSION = 10; // bump to force cache clear
@@ -701,17 +704,6 @@
         ).join('');
     }
 
-    // Routes stored in localStorage (shared between admin + driver on same domain)
-    const ROUTES_KEY = 'rr_saved_routes';
-
-    function getSavedRoutes() {
-      try { return JSON.parse(localStorage.getItem(ROUTES_KEY) || '{}'); } catch(e) { return {}; }
-    }
-
-    function setSavedRoutes(routes) {
-      localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
-    }
-
     async function saveRoute() {
       const name = document.getElementById('route-name').value.trim();
       if (!name) {
@@ -726,14 +718,12 @@
 
       try {
         const cleanStops = geocodedStops.map(s => ({ name: s.name, address: s.address, lat: s.lat, lng: s.lng }));
-        const routes = getSavedRoutes();
-        routes[name] = {
+        await db.collection('routes').doc(name).set({
           stops: cleanStops,
           savedAt: Date.now(),
           stopCount: cleanStops.length,
           estimate: routeEstimate
-        };
-        setSavedRoutes(routes);
+        });
 
         btn.textContent = 'Saved!';
         btn.classList.add('success');
@@ -754,32 +744,33 @@
     }
 
     function loadSavedRoutes() {
-      const routes = getSavedRoutes();
-      const el = document.getElementById('saved-routes');
-      const keys = Object.keys(routes);
-      if (keys.length === 0) { el.style.display = 'none'; return; }
+      db.collection('routes').onSnapshot(function(snapshot) {
+        const el = document.getElementById('saved-routes');
+        const docs = snapshot.docs;
+        if (docs.length === 0) { el.style.display = 'none'; return; }
 
-      el.style.display = 'block';
-      el.innerHTML = '<h3>Saved Routes</h3>' +
-        keys.map(function(name) {
-          const r = routes[name];
-          const est = r.estimate;
-          const estText = est ? ' &middot; ~' + formatHours(est.totalHours) + ' &middot; $' + est.suggestedPrice.toFixed(0) : '';
-          return '<div class="saved-route">' +
-            '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
-            '<div class="saved-route-meta">' + r.stopCount + ' stops' + estText + '</div></div>' +
-            '<button class="btn-delete" onclick="deleteRoute(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">Delete</button>' +
-          '</div>';
-        }).join('');
+        el.style.display = 'block';
+        el.innerHTML = '<h3>Saved Routes</h3>' +
+          docs.map(function(doc) {
+            const r = doc.data();
+            const name = doc.id;
+            const est = r.estimate;
+            const estText = est ? ' &middot; ~' + formatHours(est.totalHours) + ' &middot; $' + est.suggestedPrice.toFixed(0) : '';
+            return '<div class="saved-route">' +
+              '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
+              '<div class="saved-route-meta">' + r.stopCount + ' stops' + estText + '</div></div>' +
+              '<button class="btn-delete" onclick="deleteRoute(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+            '</div>';
+          }).join('');
+      }, function(err) { console.error('Firestore error:', err); });
     }
 
-    function deleteRoute(name) {
+    async function deleteRoute(name) {
       if (!confirm('Delete "' + name + '"?')) return;
-      const routes = getSavedRoutes();
-      delete routes[name];
-      setSavedRoutes(routes);
-      showStatus('Deleted "' + name + '".', 'info');
-      loadSavedRoutes();
+      try {
+        await db.collection('routes').doc(name).delete();
+        showStatus('Deleted "' + name + '".', 'info');
+      } catch (err) { showStatus('Failed to delete.', 'error'); }
     }
 
     function showStatus(msg, type) {
