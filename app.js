@@ -1,7 +1,7 @@
 // ============================================================
 // Route Runner - Driver App (Waze-style)
 // Full-screen map, one turn at a time, voice guidance
-// Reads routes from Firebase Firestore
+// Routes loaded from server API (GET /api/routes)
 // ============================================================
 
 var state = {
@@ -28,7 +28,7 @@ var stopMarker = null;
 var cachedRoutes = {};
 
 // ============================================================
-// VOICE GUIDANCE (Web Speech API — free, built-in)
+// VOICE GUIDANCE (Web Speech API)
 // ============================================================
 function speak(text) {
   if (!state.voiceEnabled) return;
@@ -70,22 +70,22 @@ function hideLoading() {
 }
 
 // ============================================================
-// FIREBASE - Load routes for driver
+// LOAD ROUTES from server (GET /api/routes)
 // ============================================================
-function loadRoutesFromFirebase() {
+function loadRoutes() {
   var msgEl = document.getElementById('no-routes-msg');
   if (msgEl) msgEl.textContent = 'Loading routes...';
 
-  db.collection('routes').onSnapshot(function(snapshot) {
-    cachedRoutes = {};
-    snapshot.docs.forEach(function(doc) {
-      cachedRoutes[doc.id] = doc.data();
+  fetch('routes.json')
+    .then(function(res) { return res.json(); })
+    .then(function(routes) {
+      cachedRoutes = routes || {};
+      renderSavedRoutes(cachedRoutes);
+    })
+    .catch(function(err) {
+      if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
+      console.error('Load routes error:', err);
     });
-    renderSavedRoutes(cachedRoutes);
-  }, function(err) {
-    if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
-    console.error('Firebase error:', err);
-  });
 }
 
 function renderSavedRoutes(routes) {
@@ -127,7 +127,6 @@ function renderSavedRoutes(routes) {
     '</div>';
   }).join('');
 
-  // Attach click handlers — use index to avoid string escaping issues
   list.querySelectorAll('.saved-route-info[data-route-index]').forEach(function(el) {
     el.addEventListener('click', function() {
       var idx = parseInt(el.getAttribute('data-route-index'), 10);
@@ -138,7 +137,6 @@ function renderSavedRoutes(routes) {
 
 // ============================================================
 // LOAD ROUTE → Show preview screen
-// Uses cached data from onSnapshot — no extra Firestore call needed
 // ============================================================
 function loadRoute(name) {
   var progress = getSavedProgress(name);
@@ -181,7 +179,6 @@ function showStartScreen(isResume) {
   document.getElementById('start-route-name').textContent = state.routeName;
   document.getElementById('start-stop-count').textContent = total + ' stop' + (total !== 1 ? 's' : '');
 
-  // Estimate
   var est = state.estimate;
   if (est) {
     document.getElementById('start-estimate').textContent = '~' + formatHoursShort(est.totalHours);
@@ -193,7 +190,6 @@ function showStartScreen(isResume) {
     document.getElementById('start-price-row').style.display = 'none';
   }
 
-  // Build stop list
   var stopListEl = document.getElementById('start-stop-list');
   var stopsToShow = isResume ? state.stops.slice(state.currentStopIndex) : state.stops;
   stopListEl.innerHTML = stopsToShow.map(function(stop, i) {
@@ -210,7 +206,6 @@ function showStartScreen(isResume) {
     '</div>';
   }).join('');
 
-  // Resume info
   var resumeInfo = document.getElementById('start-resume-info');
   if (isResume) {
     resumeInfo.style.display = '';
@@ -228,7 +223,7 @@ function showStartScreen(isResume) {
 }
 
 // ============================================================
-// START ROUTE — Get GPS, optimize, then begin navigation
+// START ROUTE — Get GPS, optimize, then begin
 // ============================================================
 function startRoute() {
   var btn = document.getElementById('start-go-btn');
@@ -236,14 +231,12 @@ function startRoute() {
   btn.innerHTML = '<span class="start-btn-spinner"></span> Optimizing...';
 
   getDriverLocation(function(driverPos) {
-    // Only optimize fresh routes (not resumed)
     if (state.tripStartTime === null && state.stops.length > 2) {
       if (driverPos) {
         state.stops = optimizeRouteFromGPS(state.stops, driverPos);
       }
     }
     state.tripStartTime = state.tripStartTime || Date.now();
-
     btn.disabled = false;
     showDeliveryScreen();
   });
@@ -589,6 +582,7 @@ function newTrip() {
   };
   navMap = null; navRouteLayer = null; userMarker = null; stopMarker = null;
   document.getElementById('nav-map').innerHTML = '';
+  loadRoutes();
   showScreen('upload');
 }
 
@@ -745,5 +739,5 @@ function escapeHtml(str) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-  loadRoutesFromFirebase();
+  loadRoutes();
 });

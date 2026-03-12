@@ -12,7 +12,7 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname)));
 
 // Parse uploaded file (CSV or Excel) into list of stops
 app.post('/api/upload', upload.single('file'), (req, res) => {
@@ -315,7 +315,7 @@ const ROUTES_FILE = path.join(__dirname, 'routes.json');
 
 app.post('/api/save-route', (req, res) => {
   try {
-    const { name, stops } = req.body;
+    const { name, stops, estimate } = req.body;
     if (!name || !stops || stops.length === 0) {
       return res.status(400).json({ error: 'Name and stops required' });
     }
@@ -330,7 +330,8 @@ app.post('/api/save-route', (req, res) => {
     routes[name] = {
       stops: stops,
       savedAt: Date.now(),
-      stopCount: stops.length
+      stopCount: stops.length,
+      estimate: estimate || null
     };
 
     fs.writeFileSync(ROUTES_FILE, JSON.stringify(routes, null, 2));
@@ -350,6 +351,33 @@ app.post('/api/save-route', (req, res) => {
   } catch (err) {
     console.error('Save route error:', err);
     res.status(500).json({ error: 'Failed to save route' });
+  }
+});
+
+// Delete a route
+app.post('/api/delete-route', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+
+    let routes = {};
+    try { routes = JSON.parse(fs.readFileSync(ROUTES_FILE, 'utf-8')); } catch (e) {}
+
+    delete routes[name];
+    fs.writeFileSync(ROUTES_FILE, JSON.stringify(routes, null, 2));
+
+    try {
+      execSync('git add routes.json && git commit -m "Delete route: ' + name.replace(/"/g, '\\"') + '" && git push', {
+        cwd: __dirname, stdio: 'pipe'
+      });
+    } catch (gitErr) {
+      console.log('Route deleted locally (git push skipped):', gitErr.message);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete route error:', err);
+    res.status(500).json({ error: 'Failed to delete route' });
   }
 });
 
