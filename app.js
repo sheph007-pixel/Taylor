@@ -76,16 +76,12 @@ function loadRoutes() {
   var msgEl = document.getElementById('no-routes-msg');
   if (msgEl) msgEl.textContent = 'Loading routes...';
 
-  fetch('routes.json')
-    .then(function(res) { return res.json(); })
-    .then(function(routes) {
-      cachedRoutes = routes || {};
-      renderSavedRoutes(cachedRoutes);
-    })
-    .catch(function(err) {
-      if (msgEl) msgEl.textContent = 'Could not load routes. Check connection.';
-      console.error('Load routes error:', err);
-    });
+  try {
+    cachedRoutes = JSON.parse(localStorage.getItem('rr_saved_routes') || '{}');
+  } catch(e) {
+    cachedRoutes = {};
+  }
+  renderSavedRoutes(cachedRoutes);
 }
 
 function renderSavedRoutes(routes) {
