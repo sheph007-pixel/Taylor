@@ -1,0 +1,141 @@
+/* Route Runner — shared design tokens
+   Source of truth: design_handoff_route_runner/README.md (Design System) */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Surfaces */
+  --ink:          #16130F;
+  --ink-2:        #1F1B16;
+  --ink-3:        #2A241C;
+  --paper:        #F5EFE3;
+  --paper-2:      #EBE3D2;
+  --paper-3:      #DDD2BC;
+  --line:         #CFC3A8;
+  --card:         #FFFAEE;
+
+  /* Accents */
+  --amber:        #E8A838;
+  --amber-deep:   #C67E1A;
+  --amber-soft:   #FBE9C0;
+  --rust:         #B4522A;
+  --moss:         #4E6B3A;
+  --moss-deep:    #36502A;
+
+  /* Text */
+  --text-high:       #16130F;
+  --text-mid:        #5C5245;
+  --text-low:        #847761;
+  --text-on-ink:     #F5EFE3;
+  --text-on-ink-2:   rgba(245, 239, 227, 0.72);
+  --text-on-ink-3:   rgba(245, 239, 227, 0.45);
+
+  /* Type */
+  --font-display: 'Archivo', -apple-system, system-ui, sans-serif;
+  --font-body:    'Inter Tight', -apple-system, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Radii */
+  --radius-card:    14px;
+  --radius-card-sm: 12px;
+  --radius-pill:    8px;
+  --radius-chip:    7px;
+
+  /* Shadows */
+  --shadow-btn-amber:   0 4px 0 var(--amber-deep), 0 8px 20px rgba(198, 126, 26, 0.25);
+  --shadow-btn-moss:    0 3px 0 var(--moss-deep);
+  --shadow-sheet-up:    0 -4px 18px rgba(22, 19, 15, 0.18);
+
+  /* Misc */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Reset shared between driver + admin */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  background: var(--paper);
+  color: var(--text-high);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Type utilities */
+.rr-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+}
+
+.rr-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.rr-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rr-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-low);
+}
+
+.rr-btn-label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* Core keyframes */
+@keyframes rr-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+@keyframes rr-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Pulsing status dot (used on route cards, nav "HEADING TO", paused, admin) */
+.rr-pulse-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: rr-pulse 1.5s ease-in-out infinite;
+  vertical-align: middle;
+}
