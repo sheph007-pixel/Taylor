@@ -647,6 +647,20 @@ html, body {
 }
 .rr-nav-badge-sep { color: var(--text-low); margin: 0 1px; }
 .rr-nav-badge-num > span:last-child { color: var(--text-low); }
+.rr-nav-badge-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 5px 0 4px;
+}
+.rr-nav-badge-timer {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--amber-deep);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
 
 /* Exit back to routes */
 .rr-nav-exit {
@@ -930,6 +944,25 @@ html, body {
   color: var(--text-on-ink-3);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.rr-paused-clocked {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.rr-paused-clocked .rr-eyebrow {
+  color: var(--text-on-ink-3);
+}
+.rr-paused-clocked-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--amber);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .rr-paused-upnext {

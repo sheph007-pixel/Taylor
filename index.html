@@ -109,10 +109,12 @@
       </div>
     </div>
 
-    <!-- TOP-RIGHT: Stop counter -->
+    <!-- TOP-RIGHT: Stop counter + live active-time timer -->
     <div id="nav-progress-badge" class="rr-nav-badge">
       <span class="rr-nav-badge-label">Stop</span>
       <div class="rr-nav-badge-num"><span id="nav-stop-num">1</span><span class="rr-nav-badge-sep">/</span><span id="nav-stop-total">1</span></div>
+      <div class="rr-nav-badge-divider" aria-hidden="true"></div>
+      <span id="nav-timer" class="rr-nav-badge-timer">0:00</span>
     </div>
 
     <!-- Exit back to routes (saves progress) -->
@@ -188,6 +190,11 @@
           <div class="rr-paused-done-num" id="paused-done">0</div>
           <div class="rr-paused-done-label">Of <span id="paused-total">0</span> delivered</div>
         </div>
+      </div>
+
+      <div class="rr-paused-clocked">
+        <span class="rr-eyebrow">Clocked In</span>
+        <span id="paused-clocked" class="rr-paused-clocked-value">0m</span>
       </div>
 
       <div class="rr-paused-upnext">
