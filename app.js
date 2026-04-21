@@ -673,6 +673,7 @@ function tripComplete() {
   document.getElementById('complete-trip-id').textContent = '#' + deriveTripId(state.routeName, state.tripStartTime);
 
   renderTripLedger(actualHours);
+  writeRunSummary();
 
   speak('All done! ' + state.deliveredCount + ' delivered.');
   clearProgress();
@@ -868,6 +869,151 @@ function getSavedProgress(routeName) {
 
 function clearProgress() {
   try { localStorage.removeItem(getProgressKey()); } catch (e) {}
+}
+
+// ============================================================
+// COMPLETED RUN HISTORY
+// ============================================================
+function writeRunSummary() {
+  if (!state.routeName || !state.tripStartTime) return;
+  var est = state.estimate || {};
+  var payload = {
+    routeName: state.routeName,
+    startedAt: state.tripStartTime,
+    endedAt: state.tripEndTime || Date.now(),
+    activeSeconds: Math.round(state.activeSeconds || 0),
+    clockSeconds: Math.round(((state.tripEndTime || Date.now()) - state.tripStartTime) / 1000),
+    stopCount: state.stops.length,
+    deliveredCount: state.deliveredCount,
+    skippedCount: state.skippedCount,
+    estimatedMiles: est.totalMiles || 0,
+    estimatedHours: est.totalHours || 0,
+    suggestedPrice: est.suggestedPrice || 0,
+    tripId: deriveTripId(state.routeName, state.tripStartTime)
+  };
+  try {
+    db.collection('routes').doc(state.routeName).collection('runs').add(payload)
+      .then(function() { _historyCache = null; })
+      .catch(function(err) { console.warn('Could not write run summary:', err); });
+  } catch (err) {
+    console.warn('Could not write run summary:', err);
+  }
+}
+
+var _historyCache = null;
+
+function showHistoryScreen() {
+  var listEl = document.getElementById('history-list');
+  var countEl = document.getElementById('history-count');
+  var emptyEl = document.getElementById('history-empty');
+  if (listEl) listEl.innerHTML = '';
+  if (countEl) countEl.textContent = '— total';
+  if (emptyEl) emptyEl.hidden = true;
+  showScreen('history');
+
+  if (_historyCache) {
+    renderHistoryList(_historyCache);
+    return;
+  }
+
+  var loadingEl = document.getElementById('history-loading');
+  if (loadingEl) loadingEl.hidden = false;
+
+  db.collectionGroup('runs').get().then(function(snap) {
+    var runs = snap.docs.map(function(d) { return d.data(); });
+    runs.sort(function(a, b) { return (b.endedAt || 0) - (a.endedAt || 0); });
+    _historyCache = runs;
+    if (loadingEl) loadingEl.hidden = true;
+    renderHistoryList(runs);
+  }).catch(function(err) {
+    console.error('history load failed:', err);
+    if (loadingEl) loadingEl.hidden = true;
+    if (emptyEl) {
+      emptyEl.hidden = false;
+      emptyEl.textContent = 'Could not load history. Check your connection and try again.';
+    }
+  });
+}
+
+function renderHistoryList(runs) {
+  var listEl = document.getElementById('history-list');
+  var countEl = document.getElementById('history-count');
+  var emptyEl = document.getElementById('history-empty');
+  if (!listEl) return;
+
+  countEl.textContent = runs.length + ' total';
+
+  if (runs.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.hidden = false;
+    emptyEl.textContent = "No runs yet. Complete a route and it'll show up here.";
+    return;
+  }
+  emptyEl.hidden = true;
+
+  listEl.innerHTML = runs.map(function(r) {
+    var when = formatRunWhen(r.endedAt);
+    var actualSecs = r.activeSeconds || 0;
+    var estSecs = (r.estimatedHours || 0) * 3600;
+    var varianceHtml = buildVariancePill(actualSecs, estSecs);
+
+    var statsLine = r.deliveredCount + ' delivered · ' +
+      (r.skippedCount || 0) + ' skipped · ' +
+      (r.estimatedMiles ? Math.round(r.estimatedMiles) + ' mi · ' : '') +
+      '$' + Math.round(r.suggestedPrice || 0) +
+      (r.tripId ? ' · #' + r.tripId : '');
+
+    return '<div class="rr-history-row">' +
+      '<div class="rr-history-row-head">' +
+        '<span class="rr-history-row-name">' + escapeHtml(r.routeName || '—') + '</span>' +
+        '<span class="rr-history-row-when rr-mono">' + when + '</span>' +
+      '</div>' +
+      '<div class="rr-history-row-times">' +
+        '<div class="rr-history-time">' +
+          '<span class="rr-history-time-label">Actual</span>' +
+          '<span class="rr-history-time-value">' + formatElapsed(actualSecs) + '</span>' +
+        '</div>' +
+        '<div class="rr-history-time">' +
+          '<span class="rr-history-time-label">Est</span>' +
+          '<span class="rr-history-time-value rr-history-time-est">' + formatElapsed(estSecs) + '</span>' +
+        '</div>' +
+        varianceHtml +
+      '</div>' +
+      '<div class="rr-history-stats rr-mono">' + escapeHtml(statsLine) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function buildVariancePill(actualSecs, estSecs) {
+  if (!estSecs) return '';
+  var delta = actualSecs - estSecs;
+  var absMin = Math.abs(Math.round(delta / 60));
+  var tolerance = Math.max(estSecs * 0.05, 180);  // 5% or 3min, whichever is larger
+  var variant, label;
+  if (Math.abs(delta) <= tolerance) {
+    variant = 'ontrack';
+    label = 'On target';
+  } else if (delta < 0) {
+    variant = 'under';
+    label = absMin + 'm under';
+  } else {
+    variant = 'over';
+    label = absMin + 'm over';
+  }
+  return '<span class="rr-history-variance is-' + variant + '">' + label + '</span>';
+}
+
+function formatRunWhen(ms) {
+  if (!ms) return '—';
+  var d = new Date(ms);
+  var days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+  var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var h = d.getHours();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var hr12 = h % 12 || 12;
+  var mm = d.getMinutes();
+  return days[d.getDay()] + ' · ' + months[d.getMonth()] + ' ' + d.getDate() +
+    ', ' + hr12 + ':' + (mm < 10 ? '0' + mm : mm) + ' ' + ampm;
 }
 
 // ============================================================
