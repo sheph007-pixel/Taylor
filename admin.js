@@ -543,31 +543,112 @@ function loadSavedRoutes() {
 
 function renderSavedRoutesAdmin(routes) {
   const el = document.getElementById('saved-routes');
+  const countEl = document.getElementById('routes-count');
   if (!el) return;
+
   const docs = Object.keys(routes || {});
+  if (countEl) countEl.textContent = docs.length + ' total';
+
   if (docs.length === 0) {
-    el.style.display = 'block';
-    el.innerHTML = '<h3>Saved Routes</h3><p style="padding:12px 16px;color:var(--text-low);font-size:13px;">No routes yet. Upload one above.</p>';
+    el.innerHTML = '<div class="rr-routes-empty">No routes yet. Upload one to get started.</div>';
     return;
   }
+
   docs.sort(function(a, b) { return (routes[b].savedAt || 0) - (routes[a].savedAt || 0); });
 
-  el.style.display = 'block';
-  el.innerHTML = '<h3>Saved Routes</h3>' +
-    docs.map(function(name) {
-      const r = routes[name];
-      const est = r.estimate;
-      const estText = est ? ' &middot; ~' + formatHours(est.totalHours) + ' &middot; $' + est.suggestedPrice.toFixed(0) : '';
-      return '<div class="saved-route">' +
-        '<div><div class="saved-route-name">' + escapeHtml(name) + '</div>' +
-        '<div class="saved-route-meta">' + r.stopCount + ' stops' + estText + '</div></div>' +
-        '<button class="btn-delete" data-route="' + escapeHtml(name) + '">Delete</button>' +
-      '</div>';
-    }).join('');
+  el.innerHTML = docs.map(function(name) {
+    const r = routes[name];
+    const est = r.estimate;
+    const stats = r.stopCount + ' stops' +
+      (est ? ' · ' + formatHoursShort(est.totalHours) + ' · $' + Math.round(est.suggestedPrice) : '');
 
-  el.querySelectorAll('.btn-delete[data-route]').forEach(function(btn) {
-    btn.addEventListener('click', function() { deleteRoute(btn.getAttribute('data-route')); });
+    return '<div class="rr-route-row">' +
+      '<div class="rr-route-row-top">' +
+        '<div class="rr-route-row-info">' +
+          '<div class="rr-route-row-status-wrap">' +
+            '<span class="rr-route-row-status">Idle</span>' +
+          '</div>' +
+          '<div class="rr-route-row-name">' + escapeHtml(name) + '</div>' +
+          '<div class="rr-route-row-stats rr-mono">' + stats + '</div>' +
+        '</div>' +
+        '<button type="button" class="rr-route-row-edit" data-edit="' + escapeHtml(name) + '">Edit</button>' +
+      '</div>' +
+      '<div class="rr-route-row-actions">' +
+        '<button type="button" class="rr-route-row-action" data-action="duplicate" data-route="' + escapeHtml(name) + '">Duplicate</button>' +
+        '<button type="button" class="rr-route-row-action" data-action="export" data-route="' + escapeHtml(name) + '">Export</button>' +
+        '<button type="button" class="rr-route-row-action is-delete" data-action="delete" data-route="' + escapeHtml(name) + '">Delete</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  el.querySelectorAll('.rr-route-row-edit[data-edit]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      if (typeof openEditRoute === 'function') openEditRoute(btn.getAttribute('data-edit'));
+    });
   });
+
+  el.querySelectorAll('.rr-route-row-action[data-action]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const name = btn.getAttribute('data-route');
+      const action = btn.getAttribute('data-action');
+      if (action === 'delete') deleteRoute(name);
+      else if (action === 'duplicate') duplicateRoute(name);
+      else if (action === 'export') exportRoute(name);
+    });
+  });
+}
+
+async function duplicateRoute(name) {
+  const source = cachedAdminRoutes[name];
+  if (!source) return;
+  let copyName = name + ' (copy)';
+  let n = 2;
+  while (cachedAdminRoutes[copyName]) {
+    copyName = name + ' (copy ' + n + ')';
+    n++;
+  }
+  try {
+    await db.collection('routes').doc(copyName).set({
+      stops: (source.stops || []).map(function(s) {
+        return { name: s.name, address: s.address, lat: s.lat, lng: s.lng };
+      }),
+      savedAt: Date.now(),
+      stopCount: source.stopCount,
+      estimate: source.estimate || null
+    });
+    showStatus('Duplicated as "' + copyName + '".', 'success');
+  } catch (err) {
+    showStatus('Failed to duplicate.', 'error');
+    console.error(err);
+  }
+}
+
+function exportRoute(name) {
+  const route = cachedAdminRoutes[name];
+  if (!route || !route.stops) return;
+
+  const rows = [['order', 'company', 'address', 'lat', 'lng']];
+  route.stops.forEach(function(s, i) {
+    rows.push([String(i + 1), s.name || '', s.address || '', s.lat || '', s.lng || '']);
+  });
+  const csv = rows.map(function(r) {
+    return r.map(function(cell) {
+      const v = String(cell);
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }).join(',');
+  }).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (name.replace(/[^A-Za-z0-9_-]+/g, '_') || 'route') + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() {
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 100);
 }
 
 async function deleteRoute(name) {
