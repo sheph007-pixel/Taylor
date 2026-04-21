@@ -317,7 +317,7 @@ function renderStartPriceBreakdown(est, totalStops) {
   var rows = [
     { label: 'Driver pay · ' + formatHoursShort(est.totalHours) + ' @ $20/hr', value: '$' + est.laborCost.toFixed(2) },
     { label: 'Gas · ' + est.totalMiles.toFixed(0) + ' mi @ $0.18/mi',          value: '$' + est.gasCost.toFixed(2) },
-    { label: '25% cushion (profit/overhead)',                                   value: '$' + est.cushion.toFixed(2) },
+    { label: '30% cushion',                                                     value: '$' + est.cushion.toFixed(2) },
     { label: 'Total charge',                                                    value: '$' + est.suggestedPrice.toFixed(0), total: true },
     { label: 'That\'s about $' + est.perStop.toFixed(2) + ' per stop',          value: '' }
   ];
@@ -691,7 +691,7 @@ function renderTripLedger(actualHours) {
   var actualCost = actualLabor + actualGas;
   var charged = est ? est.suggestedPrice : 0;
   var profit = charged - actualCost;
-  var nextCharge = Math.round(actualCost * 1.25);
+  var nextCharge = Math.round(actualCost * 1.30);
 
   var profitEl = document.getElementById('complete-profit');
   profitEl.textContent = '$' + Math.round(profit);

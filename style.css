@@ -529,19 +529,38 @@ html, body {
 .rr-price-breakdown > summary {
   list-style: none;
   cursor: pointer;
-  padding: 12px 14px;
+  padding: 16px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  transition: background 0.12s ease;
 }
+.rr-price-breakdown > summary:hover,
+.rr-price-breakdown > summary:active { background: var(--paper-2); }
 .rr-price-breakdown > summary::-webkit-details-marker { display: none; }
+.rr-price-summary-label {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-high);
+  letter-spacing: -0.01em;
+}
 .rr-price-chevron {
-  font-size: 11px;
-  color: var(--text-low);
-  transition: transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--paper-2);
+  color: var(--text-mid);
+  transition: transform 0.18s ease, background 0.12s ease;
 }
 .rr-price-breakdown[open] .rr-price-chevron {
   transform: rotate(90deg);
+  background: var(--amber);
+  color: var(--ink);
 }
 .rr-price-rows {
   padding: 0 14px 14px;
