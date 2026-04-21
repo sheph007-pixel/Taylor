@@ -22,6 +22,8 @@ var state = {
   estimate: null,
   tripStartTime: null,
   tripEndTime: null,
+  activeSince: null,    // ms timestamp while clock is running, null when paused
+  activeSeconds: 0,     // accumulated seconds across completed active intervals
   voiceEnabled: loadVoicePref(),
   currentSteps: [],
   lastSpokenStep: -1,
@@ -66,12 +68,51 @@ function syncVoiceUI() {
 }
 
 // ============================================================
+// ACTIVE-TIME CLOCK
+// ============================================================
+function startActiveClock() {
+  if (state.activeSince === null) state.activeSince = Date.now();
+}
+
+function stopActiveClock() {
+  if (state.activeSince !== null) {
+    state.activeSeconds += (Date.now() - state.activeSince) / 1000;
+    state.activeSince = null;
+  }
+}
+
+function currentActiveSeconds() {
+  var base = state.activeSeconds || 0;
+  if (state.activeSince !== null) base += (Date.now() - state.activeSince) / 1000;
+  return base;
+}
+
+function formatElapsed(secs) {
+  secs = Math.max(0, Math.floor(secs));
+  var h = Math.floor(secs / 3600);
+  var m = Math.floor((secs % 3600) / 60);
+  var s = secs % 60;
+  if (h > 0) return h + 'h ' + m + 'm';
+  return m + ':' + (s < 10 ? '0' + s : s);
+}
+
+var _navTimerInterval = null;
+function updateNavTimer() {
+  var el = document.getElementById('nav-timer');
+  if (el) el.textContent = formatElapsed(currentActiveSeconds());
+}
+
+// ============================================================
 // SCREEN MANAGEMENT
 // ============================================================
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
   document.getElementById('screen-' + id).classList.add('active');
+
+  if (_navTimerInterval) { clearInterval(_navTimerInterval); _navTimerInterval = null; }
   if (id === 'nav') {
+    updateNavTimer();
+    _navTimerInterval = setInterval(updateNavTimer, 1000);
     setTimeout(function() { initNavMap(); }, 100);
   }
 }
@@ -190,6 +231,8 @@ function loadRoute(name) {
     state.routeName = name;
     state.estimate = progress.estimate || null;
     state.tripStartTime = progress.tripStartTime || Date.now();
+    state.activeSeconds = progress.activeSeconds || 0;
+    state.activeSince = null;  // always paused on reload — driver must tap Resume
   } else {
     state.routeName = name;
     state.stops = route.stops;
@@ -198,6 +241,8 @@ function loadRoute(name) {
     state.skippedCount = 0;
     state.estimate = route.estimate || null;
     state.tripStartTime = null;
+    state.activeSeconds = 0;
+    state.activeSince = null;
   }
 
   showStartScreen(isResume);
@@ -299,6 +344,7 @@ function startRoute() {
       }
     }
     state.tripStartTime = state.tripStartTime || Date.now();
+    startActiveClock();
     btn.disabled = false;
     label.textContent = originalText;
     showDeliveryScreen();
@@ -556,6 +602,7 @@ function openInMaps() {
 // ============================================================
 function pauseTrip() {
   stopGPSTracking();
+  stopActiveClock();
   saveProgress();
 
   var total = state.stops.length;
@@ -570,6 +617,9 @@ function pauseTrip() {
   document.getElementById('paused-next-name').textContent = nextStop ? nextStop.name : 'None';
   document.getElementById('paused-remaining').textContent = remaining;
 
+  var clockedEl = document.getElementById('paused-clocked');
+  if (clockedEl) clockedEl.textContent = formatElapsed(state.activeSeconds);
+
   var ring = document.getElementById('paused-ring-fg');
   if (ring) {
     var C = 2 * Math.PI * 92;
@@ -581,11 +631,15 @@ function pauseTrip() {
   showScreen('paused');
 }
 
-function resumeTrip() { showDeliveryScreen(); }
+function resumeTrip() {
+  startActiveClock();
+  showDeliveryScreen();
+}
 
 function endTrip() {
   if (confirm('End trip? Progress is saved - you can resume later.')) {
     stopGPSTracking();
+    stopActiveClock();
     saveProgress();
     showScreen('upload');
   }
@@ -593,6 +647,7 @@ function endTrip() {
 
 function exitToRoutes() {
   stopGPSTracking();
+  stopActiveClock();
   saveProgress();
   showScreen('upload');
 }
@@ -602,9 +657,14 @@ function exitToRoutes() {
 // ============================================================
 function tripComplete() {
   stopGPSTracking();
+  stopActiveClock();
   state.tripEndTime = Date.now();
 
-  var actualHours = state.tripStartTime ? (state.tripEndTime - state.tripStartTime) / 1000 / 3600 : 0;
+  // Prefer the active (clocked-in) seconds if we tracked them;
+  // fall back to wall-clock duration for legacy resumed trips.
+  var actualHours = state.activeSeconds > 0
+    ? state.activeSeconds / 3600
+    : (state.tripStartTime ? (state.tripEndTime - state.tripStartTime) / 1000 / 3600 : 0);
 
   document.getElementById('complete-delivered').textContent = state.deliveredCount;
   document.getElementById('complete-skipped').textContent = state.skippedCount;
@@ -664,7 +724,9 @@ function newTrip() {
   state = {
     stops: [], currentStopIndex: 0, deliveredCount: 0, skippedCount: 0,
     userLocation: null, watchId: null, routeName: '', estimate: null,
-    tripStartTime: null, tripEndTime: null, voiceEnabled: true,
+    tripStartTime: null, tripEndTime: null,
+    activeSince: null, activeSeconds: 0,
+    voiceEnabled: loadVoicePref(),
     currentSteps: [], lastSpokenStep: -1, lastSpokenArrival: -1
   };
   navMap = null; navRouteLayer = null; userMarker = null; stopMarker = null;
@@ -772,6 +834,13 @@ function initNavMap() {
 function getProgressKey(name) { return 'rr_progress_' + (name || state.routeName); }
 
 function saveProgress() {
+  // Persist the clock with any in-flight chunk already rolled in — mirrors
+  // stopActiveClock() but non-destructively, so the in-memory clock keeps
+  // ticking if the trip is still active.
+  var persistSeconds = state.activeSeconds || 0;
+  if (state.activeSince !== null) {
+    persistSeconds += (Date.now() - state.activeSince) / 1000;
+  }
   var data = {
     stops: state.stops,
     currentStopIndex: state.currentStopIndex,
@@ -780,6 +849,7 @@ function saveProgress() {
     routeName: state.routeName,
     estimate: state.estimate,
     tripStartTime: state.tripStartTime,
+    activeSeconds: persistSeconds,
     savedAt: Date.now()
   };
   try { localStorage.setItem(getProgressKey(), JSON.stringify(data)); } catch (e) {}
