@@ -266,6 +266,31 @@ html, body {
   color: var(--amber-deep);
 }
 
+.rr-list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rr-icon-btn--sm {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  color: var(--text-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.12s ease, transform 0.3s ease;
+}
+.rr-icon-btn--sm:hover { color: var(--amber-deep); }
+.rr-icon-btn--sm:active {
+  background: var(--amber-soft);
+  color: var(--amber-deep);
+  transform: rotate(-90deg);
+}
+
 .rr-history-link {
   font-family: var(--font-mono);
   font-size: 11px;
