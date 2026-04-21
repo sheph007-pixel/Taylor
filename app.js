@@ -596,46 +596,54 @@ function tripComplete() {
   document.getElementById('complete-skipped').textContent = state.skippedCount;
   document.getElementById('complete-route-name').textContent = state.routeName;
   document.getElementById('complete-time').textContent = formatHoursShort(actualHours);
+  document.getElementById('complete-trip-id').textContent = '#' + deriveTripId(state.routeName, state.tripStartTime);
 
-  var financialEl = document.getElementById('complete-financials');
-  var est = state.estimate;
-
-  if (est) {
-    var actualLabor = actualHours * 20;
-    var actualGas = est.totalMiles * 0.18;
-    var actualSubtotal = actualLabor + actualGas;
-    var actualWithCushion = actualSubtotal * 1.25;
-    var profitable = est.suggestedPrice >= actualSubtotal;
-
-    financialEl.innerHTML =
-      '<h3>Trip Financials</h3>' +
-      '<div class="financial-row"><span>Quoted Price:</span><strong>$' + est.suggestedPrice.toFixed(0) + '</strong></div>' +
-      '<div class="financial-row"><span>Actual Time:</span><strong>' + formatHoursShort(actualHours) + '</strong></div>' +
-      '<div class="financial-row"><span>Est. Time:</span><span>' + formatHoursShort(est.totalHours) + '</span></div>' +
-      '<div class="financial-divider"></div>' +
-      '<div class="financial-row"><span>Driver Pay (' + formatHoursShort(actualHours) + ' x $20/hr):</span><strong>$' + actualLabor.toFixed(2) + '</strong></div>' +
-      '<div class="financial-row"><span>Gas (' + est.totalMiles.toFixed(0) + ' mi):</span><strong>$' + actualGas.toFixed(2) + '</strong></div>' +
-      '<div class="financial-row"><span>Actual Cost:</span><strong>$' + actualSubtotal.toFixed(2) + '</strong></div>' +
-      '<div class="financial-divider"></div>' +
-      '<div class="financial-row highlight ' + (profitable ? 'profit' : 'loss') + '">' +
-        '<span>' + (profitable ? 'Profit:' : 'Loss:') + '</span>' +
-        '<strong>$' + Math.abs(est.suggestedPrice - actualSubtotal).toFixed(2) + '</strong>' +
-      '</div>' +
-      '<div class="financial-row"><span>Should have charged:</span><strong>$' + actualWithCushion.toFixed(0) + '</strong></div>';
-    financialEl.style.display = 'block';
-  } else {
-    var minCharge = actualHours * 20 * 1.25;
-    financialEl.innerHTML =
-      '<h3>Trip Financials</h3>' +
-      '<div class="financial-row"><span>Actual Time:</span><strong>' + formatHoursShort(actualHours) + '</strong></div>' +
-      '<div class="financial-row"><span>Min. charge for this trip:</span><strong>$' + minCharge.toFixed(0) + '</strong></div>' +
-      '<div class="financial-row hint"><span>Based on $20/hr + 25% cushion (excludes gas)</span></div>';
-    financialEl.style.display = 'block';
-  }
+  renderTripLedger(actualHours);
 
   speak('All done! ' + state.deliveredCount + ' delivered.');
   clearProgress();
   showScreen('complete');
+}
+
+function renderTripLedger(actualHours) {
+  var est = state.estimate;
+  var hourlyRate = 20;
+  var gasPerMile = 0.18;
+
+  var miles = est ? est.totalMiles : 0;
+  var actualLabor = actualHours * hourlyRate;
+  var actualGas = miles * gasPerMile;
+  var actualCost = actualLabor + actualGas;
+  var charged = est ? est.suggestedPrice : 0;
+  var profit = charged - actualCost;
+  var nextCharge = Math.round(actualCost * 1.25);
+
+  var profitEl = document.getElementById('complete-profit');
+  profitEl.textContent = '$' + Math.round(profit);
+  profitEl.classList.toggle('is-loss', profit < 0);
+
+  document.getElementById('complete-charged').textContent = '$' + Math.round(charged);
+  document.getElementById('complete-next-charge').textContent = '$' + nextCharge;
+
+  var rows = [
+    { label: 'Driver pay · ' + formatHoursShort(actualHours) + ' @ $' + hourlyRate + '/hr', value: '$' + actualLabor.toFixed(0) },
+    { label: 'Gas · ' + miles.toFixed(0) + ' mi @ $' + gasPerMile.toFixed(2), value: '$' + actualGas.toFixed(2) },
+    { label: 'Cost total', value: '$' + actualCost.toFixed(2), total: true }
+  ];
+
+  document.getElementById('complete-ledger-rows').innerHTML = rows.map(function(r) {
+    return '<div class="rr-ledger-row' + (r.total ? ' is-total' : '') + '">' +
+      '<span>' + escapeHtml(r.label) + '</span>' +
+      '<span class="rr-ledger-value">' + r.value + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+function deriveTripId(routeName, tripStartTime) {
+  var letters = String(routeName || 'RR').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase();
+  if (letters.length < 2) letters = (letters + 'RR').slice(0, 2);
+  var digits = String(tripStartTime || Date.now()).slice(-3);
+  return letters + '-' + digits;
 }
 
 function newTrip() {
