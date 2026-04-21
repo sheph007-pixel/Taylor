@@ -91,48 +91,87 @@ function loadRoutesFromFirebase() {
 function renderSavedRoutes(routes) {
   var keys = Object.keys(routes || {});
   var list = document.getElementById('saved-routes-list');
+  var sub = document.getElementById('rr-greeting-sub');
 
   if (keys.length === 0) {
-    list.innerHTML = '<p style="text-align:center;color:#9aa0a6;padding:20px;font-size:14px;">No routes yet. Ask your admin to upload one.</p>';
+    list.innerHTML = '<p class="rr-route-loading">Nothing on the board yet. Ask admin to load one.</p>';
+    if (sub) sub.textContent = 'Nothing on the board yet. Ask admin to load one.';
     return;
   }
 
   keys.sort(function(a, b) { return (routes[b].savedAt || 0) - (routes[a].savedAt || 0); });
 
-  list.innerHTML = keys.map(function(name, idx) {
+  if (sub) {
+    sub.textContent = keys.length + ' route' + (keys.length !== 1 ? 's' : '') + ' ready. Tap one to roll.';
+  }
+
+  var ARROW_SVG = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M5 2l5 5-5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  list.innerHTML = keys.map(function(name) {
     var route = routes[name];
-    var date = new Date(route.savedAt);
-    var dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     var est = route.estimate;
-
     var progress = getSavedProgress(name);
-    var progressHtml = '';
-    if (progress) {
-      var remaining = progress.stops.length - progress.currentStopIndex;
-      progressHtml = '<div class="saved-route-progress">' + progress.deliveredCount + ' done, ' + remaining + ' left</div>';
-    }
+    var isProgress = !!progress;
 
-    var estHtml = '';
-    if (est) {
-      estHtml = '<div class="saved-route-estimate">~' + formatHoursShort(est.totalHours) + ' &middot; $' + est.suggestedPrice.toFixed(0) + ' suggested</div>';
-    }
+    var total = route.stopCount || (route.stops ? route.stops.length : 0);
+    var stopsDisplay = isProgress ? (progress.currentStopIndex + '/' + total) : total;
+    var timeDisplay = est ? formatHoursShort(est.totalHours) : '—';
+    var chargeDisplay = est ? ('$' + est.suggestedPrice.toFixed(0)) : '—';
 
-    return '<div class="saved-route-card">' +
-      '<div class="saved-route-info" data-route-index="' + idx + '">' +
-        '<div class="saved-route-name">' + escapeHtml(name) + '</div>' +
-        '<div class="saved-route-meta">' + route.stopCount + ' stops &middot; ' + dateStr + '</div>' +
-        estHtml +
-        progressHtml +
+    var statusHtml = isProgress
+      ? '<span class="rr-route-status">● In Progress</span>'
+      : '<span class="rr-route-status">Ready</span>';
+
+    return '<button type="button" class="rr-route-card' + (isProgress ? ' is-progress' : '') + '" data-route-name="' + escapeHtml(name) + '">' +
+      '<div class="rr-route-card-top">' +
+        '<div class="rr-route-card-titles">' +
+          statusHtml +
+          '<span class="rr-route-name">' + escapeHtml(name) + '</span>' +
+        '</div>' +
+        '<span class="rr-route-card-cta">' + ARROW_SVG + '</span>' +
       '</div>' +
-    '</div>';
+      '<div class="rr-route-stats">' +
+        '<div class="rr-stat"><span class="rr-stat-label">Stops</span><span class="rr-stat-value">' + stopsDisplay + '</span></div>' +
+        '<div class="rr-stat"><span class="rr-stat-label">Time</span><span class="rr-stat-value">' + timeDisplay + '</span></div>' +
+        '<div class="rr-stat"><span class="rr-stat-label">Charge</span><span class="rr-stat-value' + (isProgress ? '' : ' is-accent') + '">' + chargeDisplay + '</span></div>' +
+      '</div>' +
+    '</button>';
   }).join('');
 
-  list.querySelectorAll('.saved-route-info[data-route-index]').forEach(function(el) {
+  list.querySelectorAll('.rr-route-card[data-route-name]').forEach(function(el) {
     el.addEventListener('click', function() {
-      var idx = parseInt(el.getAttribute('data-route-index'), 10);
-      loadRoute(keys[idx]);
+      loadRoute(el.getAttribute('data-route-name'));
     });
   });
+}
+
+// ============================================================
+// Header chrome — date chip, greeting, status-bar time
+// ============================================================
+function updateListHeader() {
+  var now = new Date();
+
+  var timeEl = document.getElementById('rr-status-time');
+  if (timeEl) {
+    timeEl.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  var dateEl = document.getElementById('rr-date-chip');
+  if (dateEl) {
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    dateEl.textContent = days[now.getDay()] + ' · ' + months[now.getMonth()] + ' ' + now.getDate();
+  }
+
+  var greetEl = document.getElementById('rr-greeting');
+  if (greetEl) {
+    var h = now.getHours();
+    var label;
+    if (h >= 4 && h < 12)       label = 'Morning.';
+    else if (h >= 12 && h < 17) label = 'Afternoon.';
+    else                        label = 'Evening.';
+    greetEl.textContent = label;
+  }
 }
 
 // ============================================================
@@ -739,5 +778,6 @@ function escapeHtml(str) {
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+  updateListHeader();
   loadRoutesFromFirebase();
 });
