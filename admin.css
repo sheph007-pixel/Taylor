@@ -1,0 +1,382 @@
+/* Route Runner Admin — token values come from tokens.css */
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.rr-admin-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+/* ============================================================
+   TOP BAR
+   ============================================================ */
+.rr-admin-topbar {
+  background: var(--ink);
+  color: var(--text-on-ink);
+  padding: 14px 20px 0;
+  border-bottom: 3px solid var(--amber);
+}
+
+.rr-admin-topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.rr-admin-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rr-admin-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rr-admin-mark-diamond {
+  width: 9px;
+  height: 9px;
+  background: var(--ink);
+  border-radius: 1px;
+  transform: rotate(45deg);
+  display: block;
+}
+
+.rr-admin-brand-text {
+  display: flex;
+  flex-direction: column;
+}
+.rr-admin-wordmark {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-on-ink);
+  line-height: 1.1;
+}
+.rr-admin-wordmark-sep { color: var(--amber); }
+.rr-admin-sublabel {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-on-ink-3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+.rr-admin-sync {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--ink-2);
+  border: 1px solid var(--ink-3);
+  border-radius: 20px;
+}
+.rr-admin-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--moss);
+}
+.rr-admin-sync-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-on-ink-2);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Tab strip */
+.rr-admin-tabs {
+  display: flex;
+  gap: 0;
+}
+.rr-admin-tab {
+  padding: 10px 16px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-on-ink-2);
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -3px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.rr-admin-tab:hover { color: var(--text-on-ink); }
+.rr-admin-tab.is-active {
+  color: var(--amber);
+  border-bottom-color: var(--amber);
+}
+
+/* ============================================================
+   SCREEN BODY
+   ============================================================ */
+.rr-admin-body {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--paper);
+}
+
+.admin-screen { display: none; }
+.admin-screen.active { display: block; }
+
+.rr-admin-placeholder {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-low);
+  font-size: 14px;
+}
+
+/* ============================================================
+   LEGACY UPLOAD + SAVED ROUTES STYLES
+   Kept until step 8 (Upload) and step 9 (Saved Routes) replace them.
+   ============================================================ */
+.admin-legacy-container {
+  max-width: 480px;
+  width: 100%;
+  padding: 24px;
+  margin: 0 auto;
+}
+.admin-legacy-container h1 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  margin-bottom: 4px;
+  color: var(--text-high);
+}
+.admin-legacy-container .subtitle {
+  color: var(--text-mid);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.upload-box {
+  width: 100%;
+  padding: 32px 24px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card);
+  transition: all 0.2s;
+  margin-bottom: 16px;
+}
+.upload-box:hover, .upload-box.dragover {
+  border-color: var(--amber);
+  background: var(--amber-soft);
+}
+.upload-icon { font-size: 36px; margin-bottom: 8px; }
+.upload-text { font-weight: 600; }
+.upload-hint { font-size: 13px; color: var(--text-mid); margin-top: 4px; }
+
+.route-name-section {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.route-name-section label { font-weight: 600; font-size: 14px; display: block; margin-bottom: 8px; }
+.route-name-input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  background: var(--card);
+  border-radius: 10px;
+  font-size: 16px;
+  outline: none;
+}
+.route-name-input:focus { border-color: var(--amber); }
+
+.status {
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 16px;
+}
+.status.success { background: rgba(78, 107, 58, 0.12); color: var(--moss-deep); }
+.status.error { background: rgba(180, 82, 42, 0.12); color: var(--rust); }
+.status.info { background: var(--amber-soft); color: var(--amber-deep); }
+.hidden { display: none !important; }
+
+.estimate-card {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.estimate-card h3 {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-mid);
+  border-bottom: 1px solid var(--paper-2);
+}
+.estimate-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--paper-2);
+}
+.estimate-item {
+  background: var(--card);
+  padding: 14px 16px;
+  text-align: center;
+}
+.estimate-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-high);
+}
+.estimate-value.price { color: var(--moss-deep); }
+.estimate-label {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-top: 2px;
+}
+.estimate-breakdown {
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--text-mid);
+  border-top: 1px solid var(--paper-2);
+  line-height: 1.6;
+}
+.estimate-breakdown strong { color: var(--text-high); }
+
+.stops-preview {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.stops-preview h3 {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-mid);
+  border-bottom: 1px solid var(--paper-2);
+}
+.stop-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  gap: 10px;
+  border-bottom: 1px solid var(--paper-2);
+}
+.stop-item:last-child { border-bottom: none; }
+.stop-num {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--amber-soft);
+  color: var(--amber-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.stop-name { font-weight: 600; font-size: 14px; }
+.stop-addr { font-size: 12px; color: var(--text-mid); }
+
+.btn {
+  width: 100%;
+  padding: 16px;
+  background: var(--amber);
+  color: var(--ink);
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+.btn:hover { filter: brightness(0.95); }
+.btn:disabled { background: var(--paper-3); cursor: not-allowed; }
+.btn.success { background: var(--moss); color: var(--paper); }
+
+.saved-routes {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  margin-top: 24px;
+  overflow: hidden;
+}
+.saved-routes h3 {
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--text-mid);
+  border-bottom: 1px solid var(--paper-2);
+}
+.saved-route {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--paper-2);
+}
+.saved-route:last-child { border-bottom: none; }
+.saved-route-name { font-weight: 600; }
+.saved-route-meta { font-size: 12px; color: var(--text-mid); }
+.btn-delete {
+  padding: 6px 12px;
+  background: none;
+  border: 1px solid var(--rust);
+  color: var(--rust);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.loading-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(245, 239, 227, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  z-index: 100;
+}
+.spinner {
+  width: 40px; height: 40px;
+  border: 3px solid var(--paper-2);
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: rr-spin 0.7s linear infinite;
+  margin-bottom: 16px;
+}
+.progress-bar-container {
+  width: 200px;
+  height: 6px;
+  background: var(--paper-2);
+  border-radius: 3px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--amber);
+  border-radius: 3px;
+  transition: width 0.3s;
+  width: 0%;
+}
