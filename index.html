@@ -22,6 +22,7 @@
           <span class="rr-logo-mark"><span class="rr-logo-diamond"></span></span>
           <span class="rr-wordmark">ROUTE<span class="rr-wordmark-sep">·</span>RUNNER</span>
         </div>
+        <button type="button" class="rr-history-link" onclick="showHistoryScreen()">History &rarr;</button>
       </div>
       <h1 id="rr-greeting" class="rr-greeting">Hello Taylor</h1>
       <p id="rr-greeting-sub" class="rr-list-subhead">Loading routes&hellip;</p>
@@ -271,6 +272,28 @@
 
     <div class="rr-complete-bottom">
       <button type="button" class="rr-btn-ink" onclick="newTrip()">Back to Routes</button>
+    </div>
+  </div>
+
+  <!-- SCREEN 5: History -->
+  <div id="screen-history" class="screen rr-history">
+    <div class="rr-start-topbar">
+      <button type="button" class="rr-icon-btn" onclick="showScreen('upload')" aria-label="Back to routes">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M9 2L3 7l6 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <span class="rr-eyebrow">History</span>
+      <span class="rr-topbar-spacer" aria-hidden="true"></span>
+    </div>
+
+    <div class="rr-history-header">
+      <h1 class="rr-history-title">Completed Runs</h1>
+      <span id="history-count" class="rr-history-count rr-mono">&mdash; total</span>
+    </div>
+
+    <div class="rr-history-scroll">
+      <p id="history-loading" class="rr-history-loading" hidden>Loading history&hellip;</p>
+      <div id="history-list" class="rr-history-list"></div>
+      <div id="history-empty" class="rr-history-empty" hidden>No runs yet. Complete a route and it&rsquo;ll show up here.</div>
     </div>
   </div>
 

@@ -266,6 +266,171 @@ html, body {
   color: var(--amber-deep);
 }
 
+.rr-history-link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber-deep);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+.rr-history-link:hover,
+.rr-history-link:active { background: rgba(232, 168, 56, 0.12); }
+
+/* ============================================================
+   HISTORY  (#screen-history)
+   ============================================================ */
+.rr-history { background: var(--paper); }
+
+.rr-history-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 24px 10px;
+  flex-shrink: 0;
+}
+.rr-history-title {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-high);
+  margin: 0;
+}
+.rr-history-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-low);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rr-history-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 40px;
+}
+
+.rr-history-loading {
+  padding: 32px 8px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-low);
+}
+
+.rr-history-empty {
+  padding: 32px 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-low);
+  background: var(--card);
+  border: 1.5px dashed var(--line);
+  border-radius: 12px;
+}
+
+.rr-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rr-history-row {
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+}
+
+.rr-history-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.rr-history-row-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-history-row-when {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-low);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.rr-history-row-times {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+.rr-history-time {
+  display: flex;
+  flex-direction: column;
+}
+.rr-history-time-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--text-low);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.rr-history-time-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-high);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+}
+.rr-history-time-est { color: var(--text-mid); font-weight: 700; }
+
+.rr-history-variance {
+  margin-left: auto;
+  align-self: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 7px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rr-history-variance.is-under {
+  background: rgba(78, 107, 58, 0.14);
+  color: var(--moss-deep);
+}
+.rr-history-variance.is-over {
+  background: rgba(180, 82, 42, 0.14);
+  color: var(--rust);
+}
+.rr-history-variance.is-ontrack {
+  background: rgba(232, 168, 56, 0.18);
+  color: var(--amber-deep);
+}
+
+.rr-history-stats {
+  font-size: 12px;
+  color: var(--text-mid);
+  padding-top: 8px;
+  border-top: 1px solid var(--paper-2);
+}
+
 /* ============================================================
    START / ROUTE PREVIEW  (#screen-start)
    ============================================================ */
