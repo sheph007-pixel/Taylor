@@ -214,48 +214,45 @@ function loadRoute(name) {
 function showStartScreen(isResume) {
   var total = state.stops.length;
   var remaining = total - state.currentStopIndex;
+  var est = state.estimate;
 
   document.getElementById('start-route-name').textContent = state.routeName;
-  document.getElementById('start-stop-count').textContent = total + ' stop' + (total !== 1 ? 's' : '');
+  document.getElementById('start-route-subtitle').textContent =
+    total + ' stop' + (total !== 1 ? 's' : '') + ' · auto-optimized for fastest drive';
 
-  var est = state.estimate;
-  if (est) {
-    document.getElementById('start-estimate').textContent = '~' + formatHoursShort(est.totalHours);
-    document.getElementById('start-estimate-row').style.display = '';
-    document.getElementById('start-price').textContent = '$' + est.suggestedPrice.toFixed(0) + ' suggested';
-    document.getElementById('start-price-row').style.display = '';
-  } else {
-    document.getElementById('start-estimate-row').style.display = 'none';
-    document.getElementById('start-price-row').style.display = 'none';
-  }
+  document.getElementById('start-strip-stops').textContent = total;
+  document.getElementById('start-strip-time').textContent = est ? formatHoursShort(est.totalHours) : '—';
+  document.getElementById('start-strip-charge').textContent = est ? ('$' + est.suggestedPrice.toFixed(0)) : '—';
+
+  var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6l3 3 5-6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   var stopListEl = document.getElementById('start-stop-list');
-  var stopsToShow = isResume ? state.stops.slice(state.currentStopIndex) : state.stops;
-  stopListEl.innerHTML = stopsToShow.map(function(stop, i) {
-    var num = isResume ? state.currentStopIndex + i + 1 : i + 1;
-    var statusClass = '';
-    if (stop.delivered) statusClass = ' delivered';
-    else if (stop.skipped) statusClass = ' skipped';
-    return '<div class="start-stop-item' + statusClass + '">' +
-      '<div class="start-stop-num">' + num + '</div>' +
-      '<div class="start-stop-info">' +
-        '<div class="start-stop-name">' + escapeHtml(stop.name) + '</div>' +
-        '<div class="start-stop-addr">' + escapeHtml(stop.address) + '</div>' +
+  stopListEl.innerHTML = state.stops.map(function(stop, i) {
+    var done = isResume && i < state.currentStopIndex;
+    var active = isResume && i === state.currentStopIndex;
+    var classes = 'rr-stop-item';
+    if (done) classes += ' is-done';
+    if (active) classes += ' is-active';
+    var avatarContent = done ? CHECK_SVG : (i + 1);
+    return '<div class="' + classes + '">' +
+      '<div class="rr-stop-avatar">' + avatarContent + '</div>' +
+      '<div class="rr-stop-text">' +
+        '<div class="rr-stop-name">' + escapeHtml(stop.name) + '</div>' +
+        '<div class="rr-stop-addr">' + escapeHtml(stop.address) + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
 
   var resumeInfo = document.getElementById('start-resume-info');
+  var goLabel = document.getElementById('start-go-label');
   if (isResume) {
-    resumeInfo.style.display = '';
-    document.getElementById('start-resume-text').textContent =
-      state.deliveredCount + ' delivered, ' + remaining + ' remaining';
-    document.getElementById('start-go-btn').innerHTML =
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg> Resume Route';
+    resumeInfo.hidden = false;
+    document.getElementById('start-resume-text').innerHTML =
+      '<strong>Resuming —</strong> ' + state.deliveredCount + ' delivered, ' + remaining + ' left';
+    goLabel.textContent = 'Resume Route';
   } else {
-    resumeInfo.style.display = 'none';
-    document.getElementById('start-go-btn').innerHTML =
-      '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg> Start Route';
+    resumeInfo.hidden = true;
+    goLabel.textContent = 'Start Route';
   }
 
   showScreen('start');
@@ -266,8 +263,10 @@ function showStartScreen(isResume) {
 // ============================================================
 function startRoute() {
   var btn = document.getElementById('start-go-btn');
+  var label = document.getElementById('start-go-label');
+  var originalText = label.textContent;
   btn.disabled = true;
-  btn.innerHTML = '<span class="start-btn-spinner"></span> Optimizing...';
+  label.textContent = 'Optimizing…';
 
   getDriverLocation(function(driverPos) {
     if (state.tripStartTime === null && state.stops.length > 2) {
@@ -277,6 +276,7 @@ function startRoute() {
     }
     state.tripStartTime = state.tripStartTime || Date.now();
     btn.disabled = false;
+    label.textContent = originalText;
     showDeliveryScreen();
   });
 }
