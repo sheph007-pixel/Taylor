@@ -167,11 +167,6 @@ function renderSavedRoutes(routes) {
 function updateListHeader() {
   var now = new Date();
 
-  var timeEl = document.getElementById('rr-status-time');
-  if (timeEl) {
-    timeEl.textContent = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  }
-
   var dateEl = document.getElementById('rr-date-chip');
   if (dateEl) {
     var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -180,14 +175,7 @@ function updateListHeader() {
   }
 
   var greetEl = document.getElementById('rr-greeting');
-  if (greetEl) {
-    var h = now.getHours();
-    var label;
-    if (h >= 4 && h < 12)       label = 'Morning.';
-    else if (h >= 12 && h < 17) label = 'Afternoon.';
-    else                        label = 'Evening.';
-    greetEl.textContent = label;
-  }
+  if (greetEl) greetEl.textContent = 'Hello Taylor';
 }
 
 // ============================================================
@@ -581,6 +569,12 @@ function endTrip() {
     saveProgress();
     showScreen('upload');
   }
+}
+
+function exitToRoutes() {
+  stopGPSTracking();
+  saveProgress();
+  showScreen('upload');
 }
 
 // ============================================================
