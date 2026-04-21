@@ -107,68 +107,70 @@
     </div>
   </div>
 
-  <!-- SCREEN 2: Navigation / Delivery — WAZE-STYLE full screen map -->
-  <div id="screen-nav" class="screen">
-    <!-- Full screen map -->
+  <!-- SCREEN 2: Navigation / Delivery — full-screen map with logbook chrome -->
+  <div id="screen-nav" class="screen rr-nav">
     <div id="nav-map" class="nav-map-fullscreen"></div>
 
-    <!-- TOP: Next turn instruction (big, glanceable) -->
-    <div id="nav-turn-bar" class="nav-turn-bar">
-      <div class="nav-turn-icon" id="nav-turn-icon"></div>
-      <div class="nav-turn-info">
-        <div class="nav-turn-distance" id="nav-turn-distance"></div>
-        <div class="nav-turn-text" id="nav-turn-text">Calculating route...</div>
+    <!-- TOP: Next turn card -->
+    <div id="nav-turn-bar" class="rr-nav-turn">
+      <div class="rr-nav-turn-icon" id="nav-turn-icon"></div>
+      <div class="rr-nav-turn-info">
+        <div class="rr-nav-turn-distance" id="nav-turn-distance"></div>
+        <div class="rr-nav-turn-text" id="nav-turn-text">Calculating route&hellip;</div>
       </div>
     </div>
 
-    <!-- TOP-RIGHT: Mini progress badge -->
-    <div id="nav-progress-badge" class="nav-progress-badge">
-      <span id="nav-stop-num">1</span>/<span id="nav-stop-total">1</span>
+    <!-- TOP-RIGHT: Stop counter -->
+    <div id="nav-progress-badge" class="rr-nav-badge">
+      <span class="rr-nav-badge-label">Stop</span>
+      <div class="rr-nav-badge-num"><span id="nav-stop-num">1</span><span class="rr-nav-badge-sep">/</span><span id="nav-stop-total">1</span></div>
     </div>
 
-    <!-- "You're here!" banner -->
-    <div id="arrived-banner" class="arrived-banner hidden">
-      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-      You're here!
+    <!-- Voice toggle -->
+    <button id="voice-toggle" class="rr-nav-voice is-on" onclick="toggleVoice()" aria-label="Toggle voice guidance">
+      <svg id="voice-icon-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/><path d="M19 4.9a10 10 0 010 14.1M15.5 8.5a5 5 0 010 7"/></svg>
+      <svg id="voice-icon-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+    </button>
+
+    <!-- "You're here!" arrived banner -->
+    <div id="arrived-banner" class="rr-arrived-banner hidden">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <span>You&rsquo;re here!</span>
     </div>
 
-    <!-- BOTTOM: Destination + Actions -->
-    <div class="nav-bottom-card">
-      <!-- Progress bar -->
-      <div class="nav-bottom-progress">
-        <div class="nav-bottom-progress-fill" id="delivery-progress-fill"></div>
+    <!-- BOTTOM: Destination sheet -->
+    <div class="rr-nav-sheet">
+      <div class="rr-nav-sheet-track">
+        <div class="rr-nav-sheet-fill" id="delivery-progress-fill"></div>
       </div>
 
-      <div class="nav-bottom-destination">
-        <div class="nav-bottom-name" id="delivery-company">Loading...</div>
-        <div class="nav-bottom-address" id="delivery-address"></div>
-        <div class="nav-bottom-eta-row">
-          <span class="nav-eta-chip" id="delivery-eta">--</span>
-          <span class="nav-eta-chip" id="delivery-distance">--</span>
-          <button class="nav-maps-btn" onclick="openInMaps()">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <div class="rr-nav-sheet-body">
+        <div class="rr-nav-heading">
+          <span class="rr-pulse-dot"></span>
+          <span class="rr-eyebrow is-amber-deep">Heading To</span>
+        </div>
+        <div class="rr-nav-stop-name" id="delivery-company">Loading&hellip;</div>
+        <div class="rr-nav-stop-addr" id="delivery-address"></div>
+        <div class="rr-nav-chips">
+          <span class="rr-nav-chip" id="delivery-eta">&mdash;</span>
+          <span class="rr-nav-chip" id="delivery-distance">&mdash;</span>
+          <span class="rr-nav-chips-spacer"></span>
+          <button type="button" class="rr-nav-maps" onclick="openInMaps()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
             Maps
           </button>
         </div>
       </div>
 
-      <div class="nav-bottom-actions">
-        <button class="nav-btn-delivered" onclick="markDelivered()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" width="28" height="28"><polyline points="20 6 9 17 4 12"/></svg>
+      <div class="rr-nav-actions">
+        <button type="button" class="rr-btn-moss" onclick="markDelivered()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           Delivered
         </button>
-        <div class="nav-bottom-secondary">
-          <button class="nav-btn-skip" onclick="skipStop()">Skip</button>
-          <button class="nav-btn-pause" onclick="pauseTrip()">Pause</button>
-        </div>
+        <button type="button" class="rr-btn-secondary" onclick="skipStop()">Skip</button>
+        <button type="button" class="rr-btn-secondary" onclick="pauseTrip()">Pause</button>
       </div>
     </div>
-
-    <!-- Voice toggle -->
-    <button id="voice-toggle" class="nav-voice-toggle" onclick="toggleVoice()">
-      <svg id="voice-icon-on" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-      <svg id="voice-icon-off" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-    </button>
   </div>
 
   <!-- SCREEN 3: Paused -->

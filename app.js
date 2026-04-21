@@ -4,6 +4,13 @@
 // Routes loaded from server API (GET /api/routes)
 // ============================================================
 
+function loadVoicePref() {
+  try {
+    var v = localStorage.getItem('rr_voice_on');
+    return v === null ? true : v === '1';
+  } catch (e) { return true; }
+}
+
 var state = {
   stops: [],
   currentStopIndex: 0,
@@ -15,7 +22,7 @@ var state = {
   estimate: null,
   tripStartTime: null,
   tripEndTime: null,
-  voiceEnabled: true,
+  voiceEnabled: loadVoicePref(),
   currentSteps: [],
   lastSpokenStep: -1,
   lastSpokenArrival: -1
@@ -44,9 +51,18 @@ function speak(text) {
 
 function toggleVoice() {
   state.voiceEnabled = !state.voiceEnabled;
-  document.getElementById('voice-icon-on').style.display = state.voiceEnabled ? '' : 'none';
-  document.getElementById('voice-icon-off').style.display = state.voiceEnabled ? 'none' : '';
+  try { localStorage.setItem('rr_voice_on', state.voiceEnabled ? '1' : '0'); } catch (e) {}
+  syncVoiceUI();
   if (!state.voiceEnabled) window.speechSynthesis.cancel();
+}
+
+function syncVoiceUI() {
+  var on = document.getElementById('voice-icon-on');
+  var off = document.getElementById('voice-icon-off');
+  var btn = document.getElementById('voice-toggle');
+  if (on) on.style.display = state.voiceEnabled ? '' : 'none';
+  if (off) off.style.display = state.voiceEnabled ? 'none' : '';
+  if (btn) btn.classList.toggle('is-on', state.voiceEnabled);
 }
 
 // ============================================================
@@ -455,7 +471,7 @@ function fetchDirections(from, to) {
       var route = result.routes[0];
       if (navRouteLayer) navMap.removeLayer(navRouteLayer);
       var routeCoords = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-      navRouteLayer = L.polyline(routeCoords, { color: '#1a73e8', weight: 6, opacity: 0.9 }).addTo(navMap);
+      navRouteLayer = L.polyline(routeCoords, { color: '#E8A838', weight: 6, opacity: 0.95 }).addTo(navMap);
 
       var mins = Math.round(route.duration / 60);
       document.getElementById('delivery-eta').textContent = mins < 1 ? '<1 min' : mins + ' min';
@@ -676,7 +692,7 @@ function updateUserMarker() {
     userMarker.setLatLng([state.userLocation.lat, state.userLocation.lng]);
   } else {
     userMarker = L.circleMarker([state.userLocation.lat, state.userLocation.lng], {
-      radius: 10, fillColor: '#4285f4', fillOpacity: 1, color: 'white', weight: 3
+      radius: 10, fillColor: '#16130F', fillOpacity: 1, color: '#E8A838', weight: 3
     }).addTo(navMap);
   }
 }
@@ -779,5 +795,6 @@ function escapeHtml(str) {
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
   updateListHeader();
+  syncVoiceUI();
   loadRoutesFromFirebase();
 });
