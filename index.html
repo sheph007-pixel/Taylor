@@ -225,29 +225,67 @@
   </div>
 
   <!-- SCREEN 4: Complete -->
-  <div id="screen-complete" class="screen">
-    <div class="complete-container">
-      <div class="complete-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#34a853" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="16 9 10.5 14.5 8 12" stroke-width="2.5"/></svg>
+  <div id="screen-complete" class="screen rr-complete">
+    <div class="rr-status-bar">
+      <span class="rr-status-time">9:41</span>
+      <div class="rr-status-icons" aria-hidden="true">
+        <svg class="rr-status-signal" width="16" height="10" viewBox="0 0 16 10"><rect x="0" y="6" width="2.5" height="4" rx="0.5"/><rect x="4" y="4" width="2.5" height="6" rx="0.5"/><rect x="8" y="2" width="2.5" height="8" rx="0.5"/><rect x="12" y="0" width="2.5" height="10" rx="0.5"/></svg>
+        <svg class="rr-status-battery" width="22" height="10" viewBox="0 0 22 10"><rect x="0.5" y="0.5" width="18" height="9" rx="2" fill="none"/><rect x="2" y="2" width="15" height="6" rx="0.8"/><rect x="19.5" y="3" width="1.5" height="4" rx="0.5"/></svg>
       </div>
-      <h2>All Done!</h2>
-      <p id="complete-route-name" class="complete-route-name"></p>
-      <div class="complete-stats">
-        <div class="stat">
-          <span class="stat-value" id="complete-delivered">0</span>
-          <span class="stat-label">Delivered</span>
+    </div>
+
+    <div class="rr-complete-scroll">
+      <div class="rr-complete-hero">
+        <span class="rr-complete-tag">Complete</span>
+        <h2 class="rr-complete-title">Nice work.</h2>
+        <p class="rr-complete-route" id="complete-route-name">&mdash;</p>
+      </div>
+
+      <div class="rr-bigstat-grid">
+        <div class="rr-bigstat rr-bigstat--moss">
+          <span class="rr-bigstat-num" id="complete-delivered">0</span>
+          <span class="rr-bigstat-label">Delivered</span>
         </div>
-        <div class="stat">
-          <span class="stat-value" id="complete-skipped">0</span>
-          <span class="stat-label">Skipped</span>
+        <div class="rr-bigstat rr-bigstat--rust">
+          <span class="rr-bigstat-num" id="complete-skipped">0</span>
+          <span class="rr-bigstat-label">Skipped</span>
         </div>
-        <div class="stat">
-          <span class="stat-value" id="complete-time">--</span>
-          <span class="stat-label">Total Time</span>
+        <div class="rr-bigstat">
+          <span class="rr-bigstat-num" id="complete-time">&mdash;</span>
+          <span class="rr-bigstat-label">Total Time</span>
         </div>
       </div>
-      <div id="complete-financials" class="complete-financials" style="display:none"></div>
-      <button class="btn-primary btn-huge" onclick="newTrip()">Back to Routes</button>
+
+      <div class="rr-ledger">
+        <div class="rr-ledger-head">
+          <span class="rr-ledger-title">Trip Ledger</span>
+          <span class="rr-ledger-id" id="complete-trip-id">#&mdash;</span>
+        </div>
+
+        <div class="rr-ledger-headline">
+          <div class="rr-ledger-headline-main">
+            <span class="rr-ledger-eyebrow">Profit</span>
+            <span class="rr-ledger-num" id="complete-profit">$0</span>
+          </div>
+          <div class="rr-ledger-headline-right">
+            <span class="rr-ledger-eyebrow">Charged</span>
+            <span class="rr-ledger-charged" id="complete-charged">$0</span>
+          </div>
+        </div>
+
+        <div class="rr-ledger-divider"></div>
+
+        <div class="rr-ledger-rows" id="complete-ledger-rows"></div>
+
+        <div class="rr-ledger-next">
+          <span class="rr-eyebrow is-amber rr-ledger-next-label">Next time &rarr;</span>
+          <span>Charge at least <strong id="complete-next-charge">$0</strong> (cost + 25% cushion).</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="rr-complete-bottom">
+      <button type="button" class="rr-btn-ink" onclick="newTrip()">Back to Routes</button>
     </div>
   </div>
 
