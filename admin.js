@@ -308,7 +308,7 @@ function calculateTripEstimate(stops) {
   const totalHours = drivingHours + deliveryHours;
   const hourlyRate = 20;
   const gasPerMile = 0.18;
-  const cushionPct = 0.25;
+  const cushionPct = 0.30;  // 30% buffer for traffic / slower stops
   const laborCost = totalHours * hourlyRate;
   const gasCost = totalMiles * gasPerMile;
   const subtotal = laborCost + gasCost;
@@ -349,7 +349,7 @@ function renderEstimate() {
   document.getElementById('estimate-breakdown').innerHTML =
     '<div>Driver pay &middot; ' + formatHoursShort(e.totalHours) + ' @ $20/hr: <strong>$' + e.laborCost.toFixed(2) + '</strong></div>' +
     '<div>Gas &middot; ' + e.totalMiles.toFixed(0) + ' mi @ $0.18: <strong>$' + e.gasCost.toFixed(2) + '</strong></div>' +
-    '<div>25% cushion: <strong>$' + e.cushion.toFixed(2) + '</strong></div>';
+    '<div>30% cushion: <strong>$' + e.cushion.toFixed(2) + '</strong></div>';
 }
 
 function formatHoursShort(h) {
