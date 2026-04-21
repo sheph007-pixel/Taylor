@@ -35,29 +35,129 @@
 
     <!-- Screen body -->
     <div class="rr-admin-body">
-      <!-- UPLOAD SCREEN (legacy content — step 8 rebuilds it) -->
+      <!-- UPLOAD SCREEN -->
       <div id="admin-screen-upload" class="admin-screen active">
-        <div class="admin-legacy-container">
-          <h1>Route Runner Admin</h1>
-          <p class="subtitle">Upload delivery routes for your drivers <span style="color:var(--text-low);font-size:11px">v10</span></p>
+        <div class="rr-upload">
+          <div id="status" class="rr-upload-inline-status hidden"></div>
 
-          <div class="upload-box" id="upload-box">
-            <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
-            <div class="upload-icon">&#128194;</div>
-            <p class="upload-text">Tap to upload delivery list</p>
-            <p class="upload-hint">CSV or Excel with company names &amp; addresses</p>
-          </div>
+          <!-- STAGE A: idle -->
+          <section class="rr-upload-stage" data-stage="idle">
+            <h1 class="rr-upload-title">New Route</h1>
+            <p class="rr-upload-subtitle">Drop in a CSV or Excel &mdash; we&rsquo;ll geocode, optimize, and price it.</p>
 
-          <div id="status" class="status hidden"></div>
+            <button type="button" class="rr-dropzone" id="upload-box">
+              <input type="file" id="file-input" accept=".csv,.xlsx,.xls" hidden>
+              <span class="rr-dropzone-ico" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M6 9l6-6 6 6M4 21h16"/></svg>
+              </span>
+              <span class="rr-dropzone-title">Drop delivery list</span>
+              <span class="rr-dropzone-hint">CSV &middot; XLSX &middot; XLS &middot; up to 10 MB</span>
+            </button>
 
-          <div class="route-name-section" id="name-section" style="display:none">
-            <label for="route-name">Route Name</label>
-            <input type="text" id="route-name" class="route-name-input" placeholder="e.g. Vestavia, Monday Downtown" maxlength="50">
-          </div>
+            <div class="rr-how-card">
+              <div class="rr-eyebrow is-amber rr-how-head">How it works</div>
+              <div class="rr-how-step">
+                <div class="rr-how-num">1</div>
+                <div class="rr-how-step-text">
+                  <div class="rr-how-step-title">Geocode each address</div>
+                  <div class="rr-how-step-desc">Street + zip first, fallbacks if needed</div>
+                </div>
+              </div>
+              <div class="rr-how-step">
+                <div class="rr-how-num">2</div>
+                <div class="rr-how-step-text">
+                  <div class="rr-how-step-title">Optimize the order</div>
+                  <div class="rr-how-step-desc">Nearest-neighbor TSP across all stops</div>
+                </div>
+              </div>
+              <div class="rr-how-step">
+                <div class="rr-how-num">3</div>
+                <div class="rr-how-step-text">
+                  <div class="rr-how-step-title">Price the trip</div>
+                  <div class="rr-how-step-desc">Driver pay + gas + 25% cushion</div>
+                </div>
+              </div>
+            </div>
 
-          <div id="estimate-card" class="estimate-card" style="display:none"></div>
-          <div id="stops-preview" class="stops-preview" style="display:none"></div>
-          <button id="btn-save" class="btn" style="display:none" onclick="saveRoute()">Save Route</button>
+            <div class="rr-expect-card">
+              <div class="rr-eyebrow">Expected columns</div>
+              <div class="rr-expect-chips">
+                <span class="rr-expect-chip">Company</span>
+                <span class="rr-expect-chip">Street</span>
+                <span class="rr-expect-chip">Suite</span>
+                <span class="rr-expect-chip">City</span>
+                <span class="rr-expect-chip">Zip</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- STAGE B: processing -->
+          <section class="rr-upload-stage" data-stage="processing" hidden>
+            <div class="rr-upload-ring-wrap">
+              <svg class="rr-upload-ring-svg" width="120" height="120" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="50" class="rr-upload-ring-bg"/>
+                <circle cx="60" cy="60" r="50" class="rr-upload-ring-fg" id="upload-ring-fg"/>
+              </svg>
+              <div class="rr-upload-ring-pct">
+                <span id="upload-ring-num">0</span><span class="rr-upload-ring-sign">%</span>
+              </div>
+            </div>
+            <div class="rr-upload-status-label" id="upload-status-label">Reading file&hellip;</div>
+            <div class="rr-upload-substatus rr-mono" id="upload-substatus">&mdash;</div>
+          </section>
+
+          <!-- STAGE C: ready -->
+          <section class="rr-upload-stage" data-stage="ready" hidden>
+            <div class="rr-upload-banner is-success" id="upload-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <span id="upload-banner-msg">All stops found and optimized.</span>
+            </div>
+
+            <label class="rr-upload-name" for="route-name">
+              <span class="rr-eyebrow">Route Name</span>
+              <input type="text" id="route-name" class="rr-upload-name-input" placeholder="Vestavia Monday" maxlength="50">
+            </label>
+
+            <div class="rr-estimate-card">
+              <div class="rr-eyebrow is-amber">Trip Estimate</div>
+              <div class="rr-estimate-headline">
+                <span class="rr-estimate-num" id="estimate-num">$0</span>
+                <span class="rr-estimate-suffix">to charge</span>
+              </div>
+              <div class="rr-estimate-grid">
+                <div class="rr-mini">
+                  <div class="rr-mini-label">Time</div>
+                  <div class="rr-mini-value" id="estimate-time">&mdash;</div>
+                </div>
+                <div class="rr-mini">
+                  <div class="rr-mini-label">Drive</div>
+                  <div class="rr-mini-value" id="estimate-drive">&mdash;</div>
+                </div>
+                <div class="rr-mini">
+                  <div class="rr-mini-label">Per Stop</div>
+                  <div class="rr-mini-value" id="estimate-perstop">&mdash;</div>
+                </div>
+              </div>
+              <details class="rr-estimate-details">
+                <summary>&#9656; How we got this</summary>
+                <div class="rr-estimate-breakdown" id="estimate-breakdown"></div>
+              </details>
+            </div>
+
+            <div class="rr-stops-preview">
+              <div class="rr-stops-preview-head">
+                <span class="rr-eyebrow"><span id="stops-preview-count">0</span> Stops &middot; Optimized</span>
+                <span class="rr-eyebrow is-amber-deep">TSP</span>
+              </div>
+              <div id="stops-preview-list"></div>
+              <div class="rr-stops-preview-more" id="stops-preview-more" hidden>+ <span id="stops-preview-more-count">0</span> more stops</div>
+            </div>
+
+            <div class="rr-upload-actions">
+              <button type="button" class="rr-btn-secondary-wide" id="upload-cancel-btn">Cancel</button>
+              <button type="button" class="rr-btn-amber rr-btn-amber--sm" id="btn-save" onclick="saveRoute()">Save Route</button>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -70,14 +170,6 @@
 
       <!-- EDIT ROUTE SCREEN (built in step 10) -->
       <div id="admin-screen-edit" class="admin-screen"></div>
-    </div>
-  </div>
-
-  <div id="loading" class="loading-overlay hidden">
-    <div class="spinner"></div>
-    <p id="loading-msg">Loading...</p>
-    <div class="progress-bar-container" id="progress-bar">
-      <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
   </div>
 

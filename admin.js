@@ -75,8 +75,34 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
+  var cancelBtn = document.getElementById('upload-cancel-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function() {
+      geocodedStops = [];
+      routeEstimate = null;
+      setUploadStage('idle');
+    });
+  }
+
   loadSavedRoutes();
 });
+
+function setUploadStage(name) {
+  document.querySelectorAll('.rr-upload-stage').forEach(function(s) {
+    s.hidden = s.getAttribute('data-stage') !== name;
+  });
+}
+
+function setProcessingStatus(pct) {
+  var label, sub;
+  if (pct < 40)       { label = 'Reading file…';       sub = '… preparing rows'; }
+  else if (pct < 80)  { label = 'Geocoding stops…';    sub = '… looking up addresses'; }
+  else                { label = 'Optimizing route…';   sub = 'Running nearest-neighbor solver'; }
+  var lblEl = document.getElementById('upload-status-label');
+  var subEl = document.getElementById('upload-substatus');
+  if (lblEl) lblEl.textContent = label;
+  if (subEl) subEl.textContent = sub;
+}
 
 async function handleFile(file) {
   const ext = file.name.split('.').pop().toLowerCase();
@@ -85,7 +111,8 @@ async function handleFile(file) {
     return;
   }
 
-  showLoading('Reading file...');
+  setUploadStage('processing');
+  setProcessingStatus(0);
   updateProgress(0);
 
   try {
@@ -94,10 +121,13 @@ async function handleFile(file) {
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
     if (!rows || rows.length === 0) {
-      hideLoading();
+      setUploadStage('idle');
       showStatus('File is empty.', 'error');
       return;
     }
+
+    var subEl = document.getElementById('upload-substatus');
+    if (subEl) subEl.textContent = rows.length + ' rows detected';
 
     const stops = [];
     const colMap = { name: null, address: null, city: null, state: null, zip: null, street: null, suite: null };
@@ -145,20 +175,22 @@ async function handleFile(file) {
     }
 
     if (stops.length === 0) {
-      hideLoading();
+      setUploadStage('idle');
       showStatus('No valid stops found. Need columns for company name and address.', 'error');
       return;
     }
-
-    showStatus('Found ' + stops.length + ' stops. Geocoding...', 'info');
 
     geocodedStops = [];
     const errors = [];
     let needsDelay = false;
 
     for (let i = 0; i < stops.length; i++) {
-      updateProgress((i / stops.length) * 100);
-      document.getElementById('loading-msg').textContent = 'Finding address ' + (i + 1) + ' of ' + stops.length + '...';
+      // Geocoding occupies 40–80% of the total progress bar
+      const pct = 40 + (i / stops.length) * 40;
+      updateProgress(pct);
+      setProcessingStatus(pct);
+      var sub = document.getElementById('upload-substatus');
+      if (sub) sub.textContent = i + ' / ' + stops.length + ' addresses found';
 
       const s = stops[i];
       const cacheKey = (s.rawStreet + '|' + (s.zip || '')).toLowerCase().trim();
@@ -230,36 +262,31 @@ async function handleFile(file) {
     }
 
     saveGeoCache();
-    updateProgress(100);
+    updateProgress(85);
+    setProcessingStatus(85);
 
     if (geocodedStops.length === 0) {
-      hideLoading();
+      setUploadStage('idle');
       showStatus('Could not find any addresses on the map.', 'error');
       return;
     }
 
-    document.getElementById('loading-msg').textContent = 'Optimizing route...';
     geocodedStops = optimizeRoute(geocodedStops);
     routeEstimate = calculateTripEstimate(geocodedStops);
+    updateProgress(100);
+    setProcessingStatus(100);
 
-    hideLoading();
+    // Brief pause so the ring hits 100% before the view swaps
+    await sleep(250);
 
-    if (errors.length > 0) {
-      showStatus(geocodedStops.length + ' stops optimized. Could not find: ' + errors.join(', '), 'error');
-    } else {
-      showStatus('All ' + geocodedStops.length + ' stops found and optimized!', 'success');
-    }
-
-    showEstimate();
-    showStopsPreview();
-    document.getElementById('name-section').style.display = 'block';
-    document.getElementById('btn-save').style.display = 'block';
-
-    const baseName = file.name.replace(/\.(csv|xlsx|xls)$/i, '');
-    document.getElementById('route-name').value = baseName;
+    renderReadyBanner(errors);
+    renderEstimate();
+    renderStopsPreview();
+    document.getElementById('route-name').value = file.name.replace(/\.(csv|xlsx|xls)$/i, '');
+    setUploadStage('ready');
 
   } catch (err) {
-    hideLoading();
+    setUploadStage('idle');
     showStatus('Failed to read file.', 'error');
     console.error(err);
   }
@@ -296,27 +323,40 @@ function calculateTripEstimate(stops) {
   };
 }
 
-function showEstimate() {
+function renderReadyBanner(errors) {
+  var banner = document.getElementById('upload-banner');
+  var msg = document.getElementById('upload-banner-msg');
+  if (!banner || !msg) return;
+  if (errors && errors.length > 0) {
+    banner.classList.remove('is-success');
+    banner.classList.add('is-warn');
+    msg.textContent = geocodedStops.length + ' of ' + (geocodedStops.length + errors.length) +
+      ' stops found and optimized. Missing: ' + errors.join(', ') + '.';
+  } else {
+    banner.classList.remove('is-warn');
+    banner.classList.add('is-success');
+    msg.textContent = 'All ' + geocodedStops.length + ' stops found and optimized.';
+  }
+}
+
+function renderEstimate() {
   if (!routeEstimate) return;
   const e = routeEstimate;
-  const el = document.getElementById('estimate-card');
-  el.style.display = 'block';
-  el.innerHTML =
-    '<h3>Trip Estimate</h3>' +
-    '<div class="estimate-grid">' +
-      '<div class="estimate-item"><div class="estimate-value price">$' + e.suggestedPrice.toFixed(0) + '</div><div class="estimate-label">Charge This</div></div>' +
-      '<div class="estimate-item"><div class="estimate-value">' + formatHours(e.totalHours) + '</div><div class="estimate-label">Est. Total Time</div></div>' +
-      '<div class="estimate-item"><div class="estimate-value">' + e.totalMiles.toFixed(0) + ' mi</div><div class="estimate-label">Est. Driving</div></div>' +
-      '<div class="estimate-item"><div class="estimate-value">$' + e.perStop.toFixed(2) + '</div><div class="estimate-label">Per Stop</div></div>' +
-    '</div>' +
-    '<div class="estimate-breakdown">' +
-      '<strong>How we got this:</strong><br>' +
-      'Driving: ~' + formatHours(e.drivingHours) + ' (' + e.totalMiles.toFixed(0) + ' mi at 25 mph avg)<br>' +
-      'Deliveries: ~' + formatHours(e.deliveryHours) + ' (' + e.stopCount + ' stops x 5 min each)<br>' +
-      'Driver pay (' + formatHours(e.totalHours) + ' x $20/hr): <strong>$' + e.laborCost.toFixed(2) + '</strong><br>' +
-      'Gas (' + e.totalMiles.toFixed(0) + ' mi x $0.18/mi): <strong>$' + e.gasCost.toFixed(2) + '</strong><br>' +
-      '25% cushion (profit/overhead): <strong>$' + e.cushion.toFixed(2) + '</strong>' +
-    '</div>';
+  document.getElementById('estimate-num').textContent = '$' + Math.round(e.suggestedPrice);
+  document.getElementById('estimate-time').textContent = formatHoursShort(e.totalHours);
+  document.getElementById('estimate-drive').textContent = e.totalMiles.toFixed(0) + ' mi';
+  document.getElementById('estimate-perstop').textContent = '$' + e.perStop.toFixed(2);
+  document.getElementById('estimate-breakdown').innerHTML =
+    '<div>Driver pay &middot; ' + formatHoursShort(e.totalHours) + ' @ $20/hr: <strong>$' + e.laborCost.toFixed(2) + '</strong></div>' +
+    '<div>Gas &middot; ' + e.totalMiles.toFixed(0) + ' mi @ $0.18: <strong>$' + e.gasCost.toFixed(2) + '</strong></div>' +
+    '<div>25% cushion: <strong>$' + e.cushion.toFixed(2) + '</strong></div>';
+}
+
+function formatHoursShort(h) {
+  var hrs = Math.floor(h);
+  var mins = Math.round((h - hrs) * 60);
+  if (hrs === 0) return mins + ' min';
+  return hrs + 'h ' + mins + 'm';
 }
 
 function formatHours(h) {
@@ -360,8 +400,15 @@ async function geocodeAddress(address) {
 function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
 function updateProgress(pct) {
-  var fill = document.getElementById('progress-fill');
-  if (fill) fill.style.width = Math.min(pct, 100) + '%';
+  pct = Math.max(0, Math.min(100, pct));
+  var numEl = document.getElementById('upload-ring-num');
+  var ring = document.getElementById('upload-ring-fg');
+  if (numEl) numEl.textContent = Math.round(pct);
+  if (ring) {
+    const C = 2 * Math.PI * 50;
+    ring.setAttribute('stroke-dasharray', C.toFixed(3));
+    ring.setAttribute('stroke-dashoffset', (C * (1 - pct / 100)).toFixed(3));
+  }
 }
 
 function optimizeRoute(stops, origin) {
@@ -406,17 +453,33 @@ function distance(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-function showStopsPreview() {
-  const el = document.getElementById('stops-preview');
-  el.style.display = 'block';
-  el.innerHTML = '<h3>' + geocodedStops.length + ' Stops (Optimized Order)</h3>' +
-    geocodedStops.map(function(s, i) {
-      return '<div class="stop-item">' +
-        '<div class="stop-num">' + (i + 1) + '</div>' +
-        '<div><div class="stop-name">' + escapeHtml(s.name) + '</div>' +
-        '<div class="stop-addr">' + escapeHtml(s.address) + '</div></div>' +
-      '</div>';
-    }).join('');
+function renderStopsPreview() {
+  const listEl = document.getElementById('stops-preview-list');
+  const more = document.getElementById('stops-preview-more');
+  const moreCount = document.getElementById('stops-preview-more-count');
+  const countEl = document.getElementById('stops-preview-count');
+  if (!listEl) return;
+
+  const total = geocodedStops.length;
+  countEl.textContent = total;
+
+  const visible = geocodedStops.slice(0, 5);
+  listEl.innerHTML = visible.map(function(s, i) {
+    return '<div class="rr-stops-preview-row">' +
+      '<div class="rr-stops-preview-num">' + (i + 1) + '</div>' +
+      '<div class="rr-stops-preview-text">' +
+        '<div class="rr-stops-preview-name">' + escapeHtml(s.name) + '</div>' +
+        '<div class="rr-stops-preview-addr">' + escapeHtml(s.address) + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if (total > 5) {
+    more.hidden = false;
+    moreCount.textContent = total - 5;
+  } else {
+    more.hidden = true;
+  }
 }
 
 // ============================================================
@@ -446,14 +509,18 @@ async function saveRoute() {
     });
 
     btn.textContent = 'Saved!';
-    btn.classList.add('success');
-    showStatus('Route "' + name + '" saved! Driver can now see it on their phone.', 'success');
+    btn.classList.add('is-saved');
+    showStatus('Route "' + name + '" saved.', 'success');
 
     setTimeout(function() {
       btn.disabled = false;
       btn.textContent = 'Save Route';
-      btn.classList.remove('success');
-    }, 3000);
+      btn.classList.remove('is-saved');
+      geocodedStops = [];
+      routeEstimate = null;
+      setUploadStage('idle');
+      showAdminScreen('routes');
+    }, 1500);
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Save Route';
@@ -519,15 +586,6 @@ function showStatus(msg, type) {
   el.textContent = msg;
   el.className = 'status ' + type;
   el.classList.remove('hidden');
-}
-
-function showLoading(msg) {
-  document.getElementById('loading-msg').textContent = msg;
-  document.getElementById('loading').classList.remove('hidden');
-}
-
-function hideLoading() {
-  document.getElementById('loading').classList.add('hidden');
 }
 
 function escapeHtml(str) {
