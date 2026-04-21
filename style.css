@@ -87,14 +87,6 @@ html, body {
 }
 .rr-wordmark-sep { color: var(--amber-deep); }
 
-.rr-date-chip {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-low);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
 .rr-greeting {
   font-family: var(--font-display);
   font-size: 44px;
@@ -358,6 +350,67 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 .rr-strip-value.is-accent { color: var(--amber); }
+
+/* Collapsible cost breakdown on the Preview screen */
+.rr-price-breakdown {
+  margin: 0 16px 10px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.rr-price-breakdown > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rr-price-breakdown > summary::-webkit-details-marker { display: none; }
+.rr-price-chevron {
+  font-size: 11px;
+  color: var(--text-low);
+  transition: transform 0.15s ease;
+}
+.rr-price-breakdown[open] .rr-price-chevron {
+  transform: rotate(90deg);
+}
+.rr-price-rows {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--paper-2);
+  padding-top: 12px;
+}
+.rr-price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.rr-price-row > span:first-child {
+  color: var(--text-mid);
+}
+.rr-price-row .rr-price-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-high);
+}
+.rr-price-row.is-total {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+.rr-price-row.is-total > span:first-child {
+  color: var(--text-high);
+  font-weight: 700;
+}
+.rr-price-row.is-total .rr-price-value {
+  color: var(--amber-deep);
+  font-weight: 700;
+  font-size: 15px;
+}
 
 .rr-start-scroll {
   flex: 1;

@@ -165,15 +165,6 @@ function renderSavedRoutes(routes) {
 // Header chrome — date chip, greeting, status-bar time
 // ============================================================
 function updateListHeader() {
-  var now = new Date();
-
-  var dateEl = document.getElementById('rr-date-chip');
-  if (dateEl) {
-    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    dateEl.textContent = days[now.getDay()] + ' · ' + months[now.getMonth()] + ' ' + now.getDate();
-  }
-
   var greetEl = document.getElementById('rr-greeting');
   if (greetEl) greetEl.textContent = 'Hello Taylor';
 }
@@ -228,6 +219,8 @@ function showStartScreen(isResume) {
   document.getElementById('start-strip-time').textContent = est ? formatHoursShort(est.totalHours) : '—';
   document.getElementById('start-strip-charge').textContent = est ? ('$' + est.suggestedPrice.toFixed(0)) : '—';
 
+  renderStartPriceBreakdown(est, total);
+
   var CHECK_SVG = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6l3 3 5-6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   var stopListEl = document.getElementById('start-stop-list');
@@ -265,6 +258,33 @@ function showStartScreen(isResume) {
 // ============================================================
 // START ROUTE — Get GPS, optimize, then begin
 // ============================================================
+function renderStartPriceBreakdown(est, totalStops) {
+  var detailsEl = document.getElementById('start-price-details');
+  var rowsEl = document.getElementById('start-price-rows');
+  if (!detailsEl || !rowsEl) return;
+
+  if (!est) {
+    detailsEl.style.display = 'none';
+    return;
+  }
+  detailsEl.style.display = '';
+
+  var rows = [
+    { label: 'Driver pay · ' + formatHoursShort(est.totalHours) + ' @ $20/hr', value: '$' + est.laborCost.toFixed(2) },
+    { label: 'Gas · ' + est.totalMiles.toFixed(0) + ' mi @ $0.18/mi',          value: '$' + est.gasCost.toFixed(2) },
+    { label: '25% cushion (profit/overhead)',                                   value: '$' + est.cushion.toFixed(2) },
+    { label: 'Total charge',                                                    value: '$' + est.suggestedPrice.toFixed(0), total: true },
+    { label: 'That\'s about $' + est.perStop.toFixed(2) + ' per stop',          value: '' }
+  ];
+
+  rowsEl.innerHTML = rows.map(function(r) {
+    return '<div class="rr-price-row' + (r.total ? ' is-total' : '') + '">' +
+      '<span>' + escapeHtml(r.label) + '</span>' +
+      (r.value ? '<span class="rr-price-value">' + r.value + '</span>' : '') +
+    '</div>';
+  }).join('');
+}
+
 function startRoute() {
   var btn = document.getElementById('start-go-btn');
   var label = document.getElementById('start-go-label');
