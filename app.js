@@ -552,12 +552,22 @@ function pauseTrip() {
 
   var total = state.stops.length;
   var remaining = total - state.currentStopIndex;
+  var pct = total > 0 ? (state.deliveredCount / total) : 0;
 
   document.getElementById('paused-done').textContent = state.deliveredCount;
   document.getElementById('paused-total').textContent = total;
-  document.getElementById('paused-next-name').textContent =
-    state.stops[state.currentStopIndex] ? state.stops[state.currentStopIndex].name : 'None';
-  document.getElementById('paused-remaining').textContent = remaining + ' stops remaining';
+  document.getElementById('paused-next-idx').textContent = Math.min(state.currentStopIndex + 1, total);
+
+  var nextStop = state.stops[state.currentStopIndex];
+  document.getElementById('paused-next-name').textContent = nextStop ? nextStop.name : 'None';
+  document.getElementById('paused-remaining').textContent = remaining;
+
+  var ring = document.getElementById('paused-ring-fg');
+  if (ring) {
+    var C = 2 * Math.PI * 92;
+    ring.setAttribute('stroke-dasharray', C.toFixed(3));
+    ring.setAttribute('stroke-dashoffset', (C * (1 - pct)).toFixed(3));
+  }
 
   speak('Trip paused.');
   showScreen('paused');
