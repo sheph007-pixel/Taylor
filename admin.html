@@ -172,8 +172,56 @@
         </div>
       </div>
 
-      <!-- EDIT ROUTE SCREEN (built in step 10) -->
-      <div id="admin-screen-edit" class="admin-screen"></div>
+      <!-- EDIT ROUTE SCREEN -->
+      <div id="admin-screen-edit" class="admin-screen">
+        <div class="rr-edit">
+          <button type="button" class="rr-edit-back" id="edit-back-btn">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M6 2L3 5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            All Routes
+          </button>
+
+          <h1 class="rr-edit-title" id="edit-route-name">Route</h1>
+          <p class="rr-edit-subtitle"><span id="edit-stop-count">0</span> stops &middot; use arrows to reorder</p>
+
+          <div class="rr-edit-list" id="edit-list"></div>
+
+          <button type="button" class="rr-edit-add" id="edit-add-btn">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Add Stop
+          </button>
+
+          <div class="rr-edit-warning">
+            <div class="rr-eyebrow is-amber-deep">Heads up</div>
+            <div class="rr-edit-warning-text">Reordering disables auto-optimization. Driver still starts from their current GPS position &mdash; but the stop sequence is now locked to your order.</div>
+          </div>
+
+          <div class="rr-upload-actions">
+            <button type="button" class="rr-btn-secondary-wide" id="edit-cancel-btn">Cancel</button>
+            <button type="button" class="rr-btn-amber rr-btn-amber--sm" id="edit-save-btn">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add-Stop modal -->
+      <div id="add-stop-modal" class="rr-modal hidden">
+        <div class="rr-modal-card">
+          <h2 class="rr-modal-title">Add Stop</h2>
+          <p class="rr-modal-sub">Enter the company name and address; we&rsquo;ll geocode it.</p>
+          <label class="rr-modal-label">
+            <span class="rr-eyebrow">Company</span>
+            <input type="text" id="add-stop-name" class="rr-modal-input" placeholder="e.g. Bromberg &amp; Co.">
+          </label>
+          <label class="rr-modal-label">
+            <span class="rr-eyebrow">Address</span>
+            <input type="text" id="add-stop-addr" class="rr-modal-input" placeholder="123 Main St, Birmingham, AL 35203">
+          </label>
+          <div id="add-stop-error" class="rr-modal-error hidden"></div>
+          <div class="rr-upload-actions" style="margin-top:12px">
+            <button type="button" class="rr-btn-secondary-wide" id="add-stop-cancel">Cancel</button>
+            <button type="button" class="rr-btn-amber rr-btn-amber--sm" id="add-stop-confirm">Add</button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

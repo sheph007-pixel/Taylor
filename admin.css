@@ -735,6 +735,234 @@ body {
 }
 
 /* ============================================================
+   EDIT ROUTE
+   ============================================================ */
+.rr-edit { padding: 14px 16px 40px; }
+
+.rr-edit-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+.rr-edit-back:hover { color: var(--text-high); }
+
+.rr-edit-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text-high);
+  margin: 0;
+}
+.rr-edit-subtitle {
+  font-size: 13px;
+  color: var(--text-mid);
+  margin-top: 3px;
+  margin-bottom: 14px;
+}
+
+.rr-edit-list {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.rr-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 10px;
+  border-bottom: 1px solid var(--paper-2);
+}
+.rr-edit-row:last-child { border-bottom: none; }
+
+.rr-edit-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rr-edit-arrow {
+  width: 22px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--paper-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-mid);
+  transition: background 0.12s ease;
+}
+.rr-edit-arrow:hover:not(:disabled) { background: var(--paper-3); }
+.rr-edit-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.rr-edit-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.rr-edit-text { flex: 1; min-width: 0; }
+.rr-edit-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rr-edit-addr {
+  font-size: 11px;
+  color: var(--text-low);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rr-edit-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--rust);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease;
+}
+.rr-edit-remove:hover { background: rgba(180, 82, 42, 0.1); }
+
+.rr-edit-add {
+  margin-top: 10px;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: 1.5px dashed var(--line);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-mid);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.rr-edit-add:hover {
+  background: var(--card);
+  border-color: var(--amber);
+  color: var(--text-high);
+}
+
+.rr-edit-warning {
+  margin-top: 14px;
+  padding: 14px;
+  background: var(--amber-soft);
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+}
+.rr-edit-warning .rr-eyebrow {
+  margin-bottom: 4px;
+  display: block;
+}
+.rr-edit-warning-text {
+  font-size: 12.5px;
+  color: var(--text-high);
+  line-height: 1.4;
+}
+
+.rr-upload-actions { margin-top: 14px; }
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+.rr-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(22, 19, 15, 0.55);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.rr-modal.hidden { display: none; }
+
+.rr-modal-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--paper);
+  border: 1.5px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 14px 40px rgba(22, 19, 15, 0.3);
+}
+.rr-modal-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-high);
+  margin: 0;
+}
+.rr-modal-sub {
+  font-size: 13px;
+  color: var(--text-mid);
+  margin-top: 4px;
+  margin-bottom: 14px;
+}
+.rr-modal-label {
+  display: block;
+  margin-bottom: 10px;
+}
+.rr-modal-label .rr-eyebrow {
+  display: block;
+  margin-bottom: 5px;
+}
+.rr-modal-input {
+  width: 100%;
+  padding: 11px 12px;
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: 9px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-high);
+  outline: none;
+}
+.rr-modal-input:focus { border-color: var(--amber); }
+.rr-modal-error {
+  padding: 8px 12px;
+  background: rgba(180, 82, 42, 0.1);
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--rust);
+  margin-top: 6px;
+}
+.rr-modal-error.hidden { display: none; }
+
+/* ============================================================
    LEGACY #status (pre-ready errors only)
    ============================================================ */
 .status {

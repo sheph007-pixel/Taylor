@@ -675,7 +675,172 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
+// ============================================================
+// EDIT ROUTE
+// ============================================================
+var editState = { originalName: null, stops: [] };
+
+function openEditRoute(name) {
+  var route = cachedAdminRoutes[name];
+  if (!route || !route.stops) return;
+  editState = {
+    originalName: name,
+    stops: route.stops.map(function(s) {
+      return { name: s.name, address: s.address, lat: s.lat, lng: s.lng };
+    })
+  };
+  showAdminScreen('edit');
+  renderEdit();
+}
+
+function renderEdit() {
+  document.getElementById('edit-route-name').textContent = editState.originalName;
+  document.getElementById('edit-stop-count').textContent = editState.stops.length;
+
+  var listEl = document.getElementById('edit-list');
+  var last = editState.stops.length - 1;
+  listEl.innerHTML = editState.stops.map(function(s, i) {
+    return '<div class="rr-edit-row">' +
+      '<div class="rr-edit-moves">' +
+        '<button type="button" class="rr-edit-arrow" data-dir="up" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">' +
+          '<svg width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true"><path d="M1 5l3.5-3.5L8 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</button>' +
+        '<button type="button" class="rr-edit-arrow" data-dir="down" data-i="' + i + '"' + (i === last ? ' disabled' : '') + ' aria-label="Move down">' +
+          '<svg width="9" height="6" viewBox="0 0 9 6" fill="none" aria-hidden="true"><path d="M1 1l3.5 3.5L8 1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</button>' +
+      '</div>' +
+      '<div class="rr-edit-num">' + (i + 1) + '</div>' +
+      '<div class="rr-edit-text">' +
+        '<div class="rr-edit-name">' + escapeHtml(s.name) + '</div>' +
+        '<div class="rr-edit-addr">' + escapeHtml(s.address) + '</div>' +
+      '</div>' +
+      '<button type="button" class="rr-edit-remove" data-remove="' + i + '" aria-label="Remove stop">' +
+        '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '</button>' +
+    '</div>';
+  }).join('');
+
+  listEl.querySelectorAll('.rr-edit-arrow[data-dir]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      editMove(parseInt(btn.getAttribute('data-i'), 10), btn.getAttribute('data-dir') === 'up' ? -1 : 1);
+    });
+  });
+  listEl.querySelectorAll('.rr-edit-remove[data-remove]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      editRemove(parseInt(btn.getAttribute('data-remove'), 10));
+    });
+  });
+}
+
+function editMove(i, delta) {
+  var j = i + delta;
+  if (j < 0 || j >= editState.stops.length) return;
+  var tmp = editState.stops[i];
+  editState.stops[i] = editState.stops[j];
+  editState.stops[j] = tmp;
+  renderEdit();
+}
+
+function editRemove(i) {
+  editState.stops.splice(i, 1);
+  renderEdit();
+}
+
+async function editSave() {
+  if (!editState.originalName) return;
+  var btn = document.getElementById('edit-save-btn');
+  btn.disabled = true;
+  var origLabel = btn.textContent;
+  btn.textContent = 'Saving…';
+
+  try {
+    var cleanStops = editState.stops.map(function(s) {
+      return { name: s.name, address: s.address, lat: s.lat, lng: s.lng };
+    });
+    await db.collection('routes').doc(editState.originalName).update({
+      stops: cleanStops,
+      stopCount: cleanStops.length,
+      updatedAt: Date.now()
+    });
+    showStatus('Saved "' + editState.originalName + '".', 'success');
+    showAdminScreen('routes');
+  } catch (err) {
+    showStatus('Failed to save changes.', 'error');
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origLabel;
+  }
+}
+
+// Add-stop modal
+function openAddStop() {
+  document.getElementById('add-stop-name').value = '';
+  document.getElementById('add-stop-addr').value = '';
+  var errEl = document.getElementById('add-stop-error');
+  errEl.classList.add('hidden');
+  errEl.textContent = '';
+  document.getElementById('add-stop-modal').classList.remove('hidden');
+  setTimeout(function() { document.getElementById('add-stop-name').focus(); }, 30);
+}
+
+function closeAddStop() {
+  document.getElementById('add-stop-modal').classList.add('hidden');
+}
+
+async function confirmAddStop() {
+  var name = document.getElementById('add-stop-name').value.trim();
+  var addr = document.getElementById('add-stop-addr').value.trim();
+  var errEl = document.getElementById('add-stop-error');
+  var confirmBtn = document.getElementById('add-stop-confirm');
+
+  errEl.classList.add('hidden');
+  errEl.textContent = '';
+
+  if (!name || !addr) {
+    errEl.textContent = 'Both company name and address are required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  confirmBtn.disabled = true;
+  var origLabel = confirmBtn.textContent;
+  confirmBtn.textContent = 'Finding…';
+
+  try {
+    var full = /alabama|,\s*al\b/i.test(addr) ? addr : addr + ', Alabama';
+    var geo = await geocodeAddress(full);
+    editState.stops.push({ name: name, address: addr, lat: geo.lat, lng: geo.lng });
+    closeAddStop();
+    renderEdit();
+  } catch (err) {
+    errEl.textContent = 'Could not find that address. Double-check it and try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = origLabel;
+  }
+}
+
+// Wire edit-screen handlers once on DOM ready (added to the main listener)
+document.addEventListener('DOMContentLoaded', function() {
+  var back = document.getElementById('edit-back-btn');
+  var cancel = document.getElementById('edit-cancel-btn');
+  var save = document.getElementById('edit-save-btn');
+  var add = document.getElementById('edit-add-btn');
+  var addCancel = document.getElementById('add-stop-cancel');
+  var addConfirm = document.getElementById('add-stop-confirm');
+
+  if (back) back.addEventListener('click', function() { showAdminScreen('routes'); });
+  if (cancel) cancel.addEventListener('click', function() { showAdminScreen('routes'); });
+  if (save) save.addEventListener('click', editSave);
+  if (add) add.addEventListener('click', openAddStop);
+  if (addCancel) addCancel.addEventListener('click', closeAddStop);
+  if (addConfirm) addConfirm.addEventListener('click', confirmAddStop);
+});
+
 // Hoist for onclick="" in markup
 window.saveRoute = saveRoute;
 window.deleteRoute = deleteRoute;
 window.showAdminScreen = showAdminScreen;
+window.openEditRoute = openEditRoute;
