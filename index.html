@@ -22,7 +22,12 @@
           <span class="rr-logo-mark"><span class="rr-logo-diamond"></span></span>
           <span class="rr-wordmark">ROUTE<span class="rr-wordmark-sep">·</span>RUNNER</span>
         </div>
-        <button type="button" class="rr-history-link" onclick="showHistoryScreen()">History &rarr;</button>
+        <div class="rr-list-header-actions">
+          <button type="button" class="rr-icon-btn rr-icon-btn--sm" onclick="hardRefresh()" aria-label="Refresh">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+          <button type="button" class="rr-history-link" onclick="showHistoryScreen()">History &rarr;</button>
+        </div>
       </div>
       <h1 id="rr-greeting" class="rr-greeting">Hello Taylor</h1>
       <p id="rr-greeting-sub" class="rr-list-subhead">Loading routes&hellip;</p>

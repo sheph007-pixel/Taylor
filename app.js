@@ -210,6 +210,14 @@ function updateListHeader() {
   if (greetEl) greetEl.textContent = 'Hello Taylor';
 }
 
+// Hard-refresh that works even inside a standalone PWA (home-screen app).
+// PWAs have no URL bar, so there's no pull-to-refresh; this button gives
+// the driver an explicit way to pull in code updates after a redeploy.
+function hardRefresh() {
+  var url = window.location.origin + window.location.pathname + '?v=' + Date.now();
+  window.location.replace(url);
+}
+
 // ============================================================
 // LOAD ROUTE → Show preview screen
 // ============================================================
