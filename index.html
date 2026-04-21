@@ -174,30 +174,53 @@
   </div>
 
   <!-- SCREEN 3: Paused -->
-  <div id="screen-paused" class="screen">
-    <div class="paused-container">
-      <div class="paused-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2"><circle cx="12" cy="12" r="10"/><rect x="9" y="8" width="2" height="8" fill="#1a73e8"/><rect x="13" y="8" width="2" height="8" fill="#1a73e8"/></svg>
+  <div id="screen-paused" class="screen rr-paused">
+    <div class="rr-status-bar rr-status-bar--dark">
+      <span class="rr-status-time">9:41</span>
+      <div class="rr-status-icons" aria-hidden="true">
+        <svg class="rr-status-signal" width="16" height="10" viewBox="0 0 16 10"><rect x="0" y="6" width="2.5" height="4" rx="0.5"/><rect x="4" y="4" width="2.5" height="6" rx="0.5"/><rect x="8" y="2" width="2.5" height="8" rx="0.5"/><rect x="12" y="0" width="2.5" height="10" rx="0.5"/></svg>
+        <svg class="rr-status-battery" width="22" height="10" viewBox="0 0 22 10"><rect x="0.5" y="0.5" width="18" height="9" rx="2" fill="none"/><rect x="2" y="2" width="15" height="6" rx="0.8"/><rect x="19.5" y="3" width="1.5" height="4" rx="0.5"/></svg>
       </div>
-      <h2>Trip Paused</h2>
-      <div class="paused-progress">
-        <div class="progress-ring">
-          <span class="progress-done" id="paused-done">0</span>
-          <span class="progress-sep">/</span>
-          <span class="progress-total" id="paused-total">0</span>
+    </div>
+
+    <div class="rr-paused-header">
+      <div class="rr-paused-flag">
+        <span class="rr-pulse-dot"></span>
+        <span class="rr-eyebrow is-amber">Paused</span>
+      </div>
+      <h2 class="rr-paused-title">Taking a<br>breather.</h2>
+      <p class="rr-paused-body">Your progress is saved. Close the app, come back whenever. The route will be waiting.</p>
+    </div>
+
+    <div class="rr-paused-middle">
+      <div class="rr-paused-ring">
+        <svg class="rr-paused-ring-svg" width="220" height="220" viewBox="0 0 220 220">
+          <circle cx="110" cy="110" r="92" class="rr-paused-ring-bg"/>
+          <circle cx="110" cy="110" r="92" id="paused-ring-fg" class="rr-paused-ring-fg"/>
+        </svg>
+        <div class="rr-paused-ring-inner">
+          <div class="rr-paused-done-num" id="paused-done">0</div>
+          <div class="rr-paused-done-label">Of <span id="paused-total">0</span> delivered</div>
         </div>
-        <p>deliveries completed</p>
       </div>
-      <p id="paused-remaining" class="paused-remaining">0 stops remaining</p>
-      <p class="paused-next">Next: <strong id="paused-next-name">--</strong></p>
-      <p class="paused-hint">Your progress is saved. You can close this and come back anytime.</p>
-      <div class="paused-actions">
-        <button class="btn-primary btn-huge" onclick="resumeTrip()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3" fill="currentColor"/></svg>
-          Resume
-        </button>
-        <button class="btn-danger" onclick="endTrip()">End Trip</button>
+
+      <div class="rr-paused-upnext">
+        <div class="rr-paused-upnext-text">
+          <span class="rr-eyebrow rr-paused-upnext-eyebrow">Up Next &middot; Stop <span id="paused-next-idx">&mdash;</span></span>
+          <span class="rr-paused-upnext-name" id="paused-next-name">&mdash;</span>
+        </div>
+        <div class="rr-paused-upnext-remaining">
+          <span id="paused-remaining">0</span><span class="rr-paused-upnext-left">left</span>
+        </div>
       </div>
+    </div>
+
+    <div class="rr-paused-actions">
+      <button type="button" class="rr-btn-amber" onclick="resumeTrip()">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><polygon points="4 2 15 9 4 16" fill="currentColor"/></svg>
+        Resume
+      </button>
+      <button type="button" class="rr-btn-ghost" onclick="endTrip()">End Trip</button>
     </div>
   </div>
 
